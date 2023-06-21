@@ -1,6 +1,7 @@
 library(readr)
 library(ggplot2)
 library(ggpubr)
+library(ggsignif)
 library(dplyr)
 library(lubridate)
 library(dataRetrieval)
@@ -69,8 +70,8 @@ result_df <- data.frame(year = all_years$year, dataset_count = result)
 
 result_df <- result_df %>%
   mutate(frac_avail = round(dataset_count/356,2),
-         dataset_length = seq(31,1,-1),
-         dataset_frac = round(dataset_length/31,2))
+         dataset_length = seq(30,0,-1),
+         dataset_frac = round(dataset_length/30,2))
 
 result_df %>%
   ggplot(aes(x = year, y = frac_avail)) +
@@ -90,18 +91,16 @@ Wtemp_daily <- wtemp %>%
 # Remove data that is not Approved (A), Approved Revised (A R), Approved Edited (A e) or Provisional (P) ----
 Wtemp_daily$Wtemp[Wtemp_daily$Wtemp >= 50] <- NA
 Wtemp_daily$Wtemp[Wtemp_daily$Wtemp < 0] <- 0
+table(Wtemp_daily$Wtemp_cd)
 Wtemp_daily$Wtemp[Wtemp_daily$Wtemp_cd == "A [4]"] <- NA
 Wtemp_daily$Wtemp[Wtemp_daily$Wtemp_cd == "A <"] <- NA
-Wtemp_daily$Wtemp[Wtemp_daily$Wtemp_cd == "P ***"] <- NA
-Wtemp_daily$Wtemp[Wtemp_daily$Wtemp_cd == "P [4]"] <- NA
-Wtemp_daily$Wtemp[Wtemp_daily$Wtemp_cd == "P Dis"] <- NA
-Wtemp_daily$Wtemp[Wtemp_daily$Wtemp_cd == "P Eqp"] <- NA
-Wtemp_daily$Wtemp[Wtemp_daily$Wtemp_cd == "P Mnt"] <- NA
 
 # Fill out time series for each site
 startDate <- as.Date("1996-01-01")
 endDate <- as.Date("2017-01-01")
+round(time_length(difftime(endDate, startDate), "years"))
 NROW(unique(Wtemp_daily$site_no)) # 57
+endDate - startDate + 1
 full_ts <- as.data.frame(rep(seq(from = startDate, to = endDate, by = "day"), times = 57))
 colnames(full_ts)[1] <- "Date"
 length(seq(from = startDate, to = endDate, by = 'day'))
@@ -140,9 +139,6 @@ Wtemp_daily <- Wtemp_daily %>%
   filter(site_no %in% keep_sites_temp$site_no)
 
 # Download daily mean discharge (Q) time series ----
-start_Date <- as.Date("1996-01-01")
-end_Date <- as.Date("2017-01-01")
-
 Q_daily_dat <- readNWISdv(siteNumbers = keep_sites_temp$site_no,
                           parameterCd = pcode_discharge,
                           startDate = startDate,
@@ -169,8 +165,6 @@ Q_daily_dat <- Q_daily_dat %>%
   select(c(site_no,Date,flow_cms,Flow_cd))
 
 # Determine how much Q data is missing for each station
-startDate <- as.Date("1996-01-01")
-endDate <- as.Date("2017-01-01")
 NROW(unique(Q_daily_dat$site_no)) # 29 out of 29 sites have concurrent daily discharge data available
 full_ts <- as.data.frame(rep(seq(from = startDate, to = endDate, by = "day"),times = 29)) 
 colnames(full_ts)[1] <- "Date"
@@ -253,6 +247,7 @@ lakes <- rnaturalearth::ne_download(scale = 110,
 
 cols <- c("Yes" = "dodgerblue", "No" = "firebrick2")
 
+# width = 900 height = 600
 ggplot() +
   geom_sf(data = can,
           mapping = aes(geometry = geometry),
@@ -380,6 +375,8 @@ hw <- left_join(saveDatWarm,saveCatWarm, by = c('site_no','event_no')) %>%
   rename(duration = duration.x)
 
 # Extract metabolism during heatwaves ----
+subset_list <- list()
+
 for (i in 1:nrow(hw)) {
   # Subset wtemp_discharge_metab based on the group and date range in the current row of hw
   subset_df <- wtemp_discharge_metab[wtemp_discharge_metab$site_no == hw$site_no[i] & wtemp_discharge_metab$date >= hw$date_start[i] & wtemp_discharge_metab$date <= hw$date_end[i], ]
@@ -405,20 +402,26 @@ hw_metab <- left_join(wtemp_discharge_metab,hw_metab, by = c('site_no','date')) 
          GPP = GPP.x,
          ER = ER.x,
          NEM = NEM.x) %>%
+  mutate(category = case_match(category,
+                               'None' ~ 'None',
+                               'I Moderate' ~ 'Moderate',
+                               'II Strong' ~ 'Strong',
+                               'III Severe' ~ 'Severe',
+                               'IV Extreme' ~ 'Extreme')) %>%
   as.data.frame()
 
 cols = c("None" = 'blue',
-         "I Moderate" = '#FFC866' ,
-         "II Strong" = '#FF6900' ,
-         "III Severe" = '#9E0000',
-         "IV Extreme" = '#2D0000')
+         "Moderate" = '#FFC866' ,
+         "Strong" = '#FF6900' ,
+         "Severe" = '#9E0000',
+         "Extreme" = '#2D0000')
 
 hw_metab$category <- factor(hw_metab$category,
                             levels = c('None',
-                                       'I Moderate',
-                                       'II Strong',
-                                       'III Severe',
-                                       'IV Extreme'))
+                                       'Moderate',
+                                       'Strong',
+                                       'Severe',
+                                       'Extreme'))
 
 # Figures (ECDF) ----
 setwd("D:/School/MichiganTech/Metabolism_Heatwave")
@@ -429,7 +432,7 @@ nem_plot <- ggplot(data = hw_metab, aes(x = NEM, color = category)) +
   scale_color_manual(values = cols) +
   labs(color = 'Riverine\nHW Severity') +
   xlab(bquote('Net Ecosystem Metabolism (g'~O[2]~ m^-2~d^-1*')')) +
-  ylab('ECDF') +
+  ylab('Cumulative Distribution') +
   scale_y_continuous(breaks = seq(0,1,0.2)) +
   theme_bw() +
   theme(axis.title.x = element_text(size = 16, color = "black"),
@@ -440,7 +443,6 @@ nem_plot <- ggplot(data = hw_metab, aes(x = NEM, color = category)) +
         # legend.position = c(0.15,0.8),
         # legend.title = element_text(size = 16),
         # legend.text = element_text(size = 16))
-nem_plot
 
 # width = 800 height = 600
 er_plot <- ggplot(data = hw_metab, aes(x = ER, color = category)) +
@@ -448,7 +450,7 @@ er_plot <- ggplot(data = hw_metab, aes(x = ER, color = category)) +
   scale_color_manual(values = cols) +
   labs(color = 'Riverine\nHW Severity') +
   xlab(bquote('Ecosystem Respiration (g'~O[2]~ m^-2~d^-1*')')) +
-  ylab('ECDF') +
+  ylab('Cumulative Distribution') +
   scale_y_continuous(breaks = seq(0,1,0.2)) +
   theme_bw() +
   theme(axis.title.x = element_text(size = 16, color = "black"),
@@ -459,7 +461,6 @@ er_plot <- ggplot(data = hw_metab, aes(x = ER, color = category)) +
         # legend.position = c(0.15,0.8),
         # legend.title = element_text(size = 16),
         # legend.text = element_text(size = 16))
-er_plot
 
 # width = 800 height = 600
 gpp_plot <- ggplot(data = hw_metab, aes(x = GPP, color = category)) +
@@ -467,8 +468,8 @@ gpp_plot <- ggplot(data = hw_metab, aes(x = GPP, color = category)) +
   scale_color_manual(values = cols) +
   labs(color = 'Riverine\nHW Severity') +
   xlab(bquote('Gross Primary Production (g'~O[2]~ m^-2~d^-1*')')) +
-  ylab('ECDF') +
-  scale_y_continuous(breaks = seq(0,1,0.2)) +
+  ylab('Cumulative Distribution') +
+  scale_y_continuous(breaks = seq(0,1,0.2), limits = c(0,1)) +
   theme_bw() +
   theme(axis.title.x = element_text(size = 16, color = "black"),
         axis.title.y = element_text(size = 16, color = "black"),
@@ -477,7 +478,6 @@ gpp_plot <- ggplot(data = hw_metab, aes(x = GPP, color = category)) +
         legend.position = c(0.85,0.35),
         legend.title = element_text(size = 16),
         legend.text = element_text(size = 16))
-gpp_plot
 
 # width = 600 height = 1200
 ggarrange(gpp_plot,er_plot,nem_plot, ncol = 1)
@@ -487,8 +487,8 @@ gpp_plot2 <- ggplot(data = hw_metab, aes(x = GPP, color = category)) +
   scale_color_manual(values = cols) +
   labs(color = 'Riverine\nHW Severity') +
   xlab(bquote('Gross Primary Production (g'~O[2]~ m^-2~d^-1*')')) +
-  ylab('ECDF') +
-  scale_y_continuous(breaks = seq(0,1,0.2)) +
+  ylab('Cumulative Distribution') +
+  scale_y_continuous(breaks = seq(0,1,0.2), limits = c(0,1)) +
   theme_bw() +
   theme(axis.title.x = element_text(size = 16, color = "black"),
         axis.title.y = element_text(size = 16, color = "black"),
@@ -498,5 +498,226 @@ gpp_plot2 <- ggplot(data = hw_metab, aes(x = GPP, color = category)) +
         legend.title = element_text(size = 16),
         legend.text = element_text(size = 16))
 
+nem_plot2 <- ggplot(data = hw_metab, aes(x = NEM, color = category)) +
+  stat_ecdf(geom = 'step', pad = F, size = 1) +
+  scale_color_manual(values = cols) +
+  labs(color = 'Riverine\nHW Severity') +
+  xlab(bquote('Net Ecosystem Metabolism (g'~O[2]~ m^-2~d^-1*')')) +
+  ylab('') +
+  scale_y_continuous(breaks = seq(0,1,0.2)) +
+  theme_bw() +
+  theme(axis.title.x = element_text(size = 16, color = "black"),
+        axis.title.y = element_text(size = 16, color = "black"),
+        axis.text.x = element_text(size = 16, color = "black"),
+        axis.text.y = element_text(size = 16, color = "black"),
+        legend.position = 'none')
+
+er_plot2 <- ggplot(data = hw_metab, aes(x = ER, color = category)) +
+  stat_ecdf(geom = 'step', pad = F, size = 1) +
+  scale_color_manual(values = cols) +
+  labs(color = 'Riverine\nHW Severity') +
+  xlab(bquote('Ecosystem Respiration (g'~O[2]~ m^-2~d^-1*')')) +
+  ylab('') +
+  scale_y_continuous(breaks = seq(0,1,0.2)) +
+  theme_bw() +
+  theme(axis.title.x = element_text(size = 16, color = "black"),
+        axis.title.y = element_text(size = 16, color = "black"),
+        axis.text.x = element_text(size = 16, color = "black"),
+        axis.text.y = element_text(size = 16, color = "black"),
+        legend.position = 'none')
+
 # width = 1500 height = 500
-ggarrange(gpp_plot2,er_plot,nem_plot, ncol = 3)
+ggarrange(gpp_plot2,er_plot2,nem_plot2, ncol = 3)
+
+hw_metab %>%
+  group_by(category) %>%
+  summarise(Count = n(),
+            Mean_GPP = mean(GPP, na.rm = T),
+            SD_GPP = sd(GPP, na.rm = T),
+            Mean_ER = mean(ER, na.rm = T),
+            SD_ER = sd(ER, na.rm = T),
+            Mean_NEM = mean(NEM, na.rm = T),
+            SD_NEM = sd(NEM, na.rm = T))
+
+# Figure (boxplots w/outliers) ----
+gpp_boxplot <- hw_metab %>%
+  ggplot(aes(x = category, y = GPP, color = category)) +
+  geom_boxplot() +
+  scale_color_manual(values = cols) +
+  ylab(bquote(atop('Gross Primary Production',
+                   '('*g ~O[2]~ m^-2~d^-1*')'))) +
+  xlab('') +
+  theme_bw() +
+  theme(axis.title.x = element_text(size = 20, color = "white"),
+        axis.title.y = element_text(size = 20, color = "black"),
+        axis.text.x = element_text(size = 20, color = "white"),
+        axis.text.y = element_text(size = 20, color = "black"),
+        legend.position = 'none')
+gpp_boxplot_outliersNA <- hw_metab %>%
+  ggplot(aes(x = category, y = GPP, color = category)) +
+  geom_boxplot(outlier.shape = NA) +
+  scale_color_manual(values = cols) +
+  coord_cartesian(ylim=c(0, 11)) +
+  scale_y_continuous(breaks = seq(0,10,2)) +
+  ylab('') +
+  xlab('') +
+  theme_bw() +
+  theme(axis.title.x = element_text(size = 20, color = "white"),
+        axis.title.y = element_text(size = 20, color = "black"),
+        axis.text.x = element_text(size = 20, color = "white"),
+        axis.text.y = element_text(size = 20, color = "black"),
+        legend.position = 'none')
+er_boxplot <- hw_metab %>%
+  ggplot(aes(x = category, y = ER, color = category)) +
+  geom_boxplot() +
+  scale_color_manual(values = cols) +
+  ylab(bquote(atop('Ecosystem Respiration',
+                   '('*g ~O[2]~ m^-2~d^-1*')'))) +
+  xlab('') +
+  theme_bw() +
+  theme(axis.title.x = element_text(size = 20, color = "white"),
+        axis.title.y = element_text(size = 20, color = "black"),
+        axis.text.x = element_text(size = 20, color = "white"),
+        axis.text.y = element_text(size = 20, color = "black"),
+        legend.position = 'none')
+er_boxplot_outliersNA <- hw_metab %>%
+  ggplot(aes(x = category, y = ER, color = category)) +
+  geom_boxplot(outlier.shape = NA) +
+  scale_color_manual(values = cols) +
+  coord_cartesian(ylim=c(-20,0)) +
+  scale_y_continuous(breaks = seq(-20,0,5)) +
+  ylab('') +
+  xlab('') +
+  theme_bw() +
+  theme(axis.title.x = element_text(size = 20, color = "white"),
+        axis.title.y = element_text(size = 20, color = "black"),
+        axis.text.x = element_text(size = 20, color = "white"),
+        axis.text.y = element_text(size = 20, color = "black"),
+        legend.position = 'none')
+nem_boxplot <- hw_metab %>%
+  ggplot(aes(x = category, y = NEM, color = category)) +
+  geom_boxplot() +
+  scale_color_manual(values = cols) +
+  ylab(bquote(atop('Net Ecosystem Metabolism',
+                   '('*g ~O[2]~ m^-2~d^-1*')'))) +
+  xlab('Riverine Heatwave Severity') +
+  theme_bw() +
+  theme(axis.title.x = element_text(size = 20, color = "black"),
+        axis.title.y = element_text(size = 20, color = "black"),
+        axis.text.x = element_text(size = 20, color = "black"),
+        axis.text.y = element_text(size = 20, color = "black"),
+        legend.position = 'none')
+nem_boxplot_outliers <- hw_metab %>%
+  ggplot(aes(x = category, y = NEM, color = category)) +
+  geom_boxplot(outlier.shape = NA) +
+  scale_color_manual(values = cols) +
+  coord_cartesian(ylim=c(-20,10)) +
+  scale_y_continuous(breaks = seq(-20,10,5)) +
+  ylab('') +
+  xlab('Riverine Heatwave Severity') +
+  theme_bw() +
+  theme(axis.title.x = element_text(size = 20, color = "black"),
+        axis.title.y = element_text(size = 20, color = "black"),
+        axis.text.x = element_text(size = 20, color = "black"),
+        axis.text.y = element_text(size = 20, color = "black"),
+        legend.position = 'none')
+
+# width = 1400 , height = 1400
+p1 <- ggarrange(gpp_boxplot,er_boxplot,nem_boxplot,
+                ncol = 1, nrow = 3, align = 'v')
+
+p2 <- ggarrange(gpp_boxplot_outliersNA,er_boxplot_outliersNA,nem_boxplot_outliers,
+                ncol = 1, nrow = 3, align = 'v')
+
+ggarrange(p1,p2,ncol = 2)
+  
+# HW Metabolism ANOVA ----
+gpp_aov <- aov(GPP~category, data = hw_metab)
+er_aov <- aov(ER~category, data = hw_metab)
+nem_aov <- aov(NEM~category, data = hw_metab)
+summary(gpp_aov)
+summary(er_aov)
+summary(nem_aov)
+TukeyHSD(gpp_aov)
+TukeyHSD(er_aov)
+TukeyHSD(nem_aov)
+
+# Figures (boxplot w/ sig) ----
+gpp_sig <- hw_metab %>%
+  ggplot(aes(x = category, y = GPP, color = category)) +
+  geom_boxplot(outlier.shape = NA) +
+  scale_color_manual(values = cols) +
+  coord_cartesian(ylim=c(0,15)) +
+  scale_y_continuous(breaks = seq(0,12,2)) +
+  geom_signif(
+    comparisons = list(c('None','Moderate'),
+                       c('None','Strong'),
+                       c('None','Severe'),
+                       c('None','Extreme')),
+    map_signif_level = T,
+    y_position = seq(9,12,1),
+    tip_length = 0,
+    color = 'black',
+    textsize = 5) +
+  ylab(bquote(atop('Gross Primary Production',
+                   '('*g ~O[2]~ m^-2~d^-1*')'))) +
+  xlab('') +
+  theme_bw() +
+  theme(axis.title.x = element_text(size = 20, color = "white"),
+        axis.title.y = element_text(size = 20, color = "black"),
+        axis.text.x = element_text(size = 20, color = "white"),
+        axis.text.y = element_text(size = 20, color = "black"),
+        legend.position = 'none')
+er_sig <- hw_metab %>%
+  ggplot(aes(x = category, y = ER, color = category)) +
+  geom_boxplot(outlier.shape = NA) +
+  scale_color_manual(values = cols) +
+  coord_cartesian(ylim=c(-20,10)) +
+  scale_y_continuous(breaks = seq(-20,0,5)) +
+  geom_signif(
+    comparisons = list(c('None','Moderate'),
+                       c('None','Strong'),
+                       c('None','Severe'),
+                       c('None','Extreme')),
+    map_signif_level = T,
+    y_position = seq(-4,2.75,2.25),
+    tip_length = 0,
+    color = 'black',
+    textsize = 5) +
+  ylab(bquote(atop('Ecosystem Respiration',
+                   '('*g ~O[2]~ m^-2~d^-1*')'))) +
+  xlab('') +
+  theme_bw() +
+  theme(axis.title.x = element_text(size = 20, color = "white"),
+        axis.title.y = element_text(size = 20, color = "black"),
+        axis.text.x = element_text(size = 20, color = "white"),
+        axis.text.y = element_text(size = 20, color = "black"),
+        legend.position = 'none')
+nem_sig <- hw_metab %>%
+  ggplot(aes(x = category, y = NEM, color = category)) +
+  geom_boxplot(outlier.shape = NA) +
+  scale_color_manual(values = cols) +
+  coord_cartesian(ylim=c(-20,20)) +
+  scale_y_continuous(breaks = seq(-20,10,5)) +
+  geom_signif(
+    comparisons = list(c('None','Moderate'),
+                       c('None','Strong'),
+                       c('None','Severe'),
+                       c('None','Extreme')),
+    map_signif_level = T,
+    y_position = seq(5,12.5,2.5),
+    tip_length = 0,
+    color = 'black',
+    textsize = 5) +
+  ylab(bquote(atop('Net Ecosystem Metabolism',
+                   '('*g ~O[2]~ m^-2~d^-1*')'))) +
+  xlab('Riverine Heatwave Severity') +
+  theme_bw() +
+  theme(axis.title.x = element_text(size = 20, color = "black"),
+        axis.title.y = element_text(size = 20, color = "black"),
+        axis.text.x = element_text(size = 20, color = "black"),
+        axis.text.y = element_text(size = 20, color = "black"),
+        legend.position = 'none')
+
+#width = 700 height = 1200
+ggarrange(gpp_sig,er_sig,nem_sig, ncol = 1, align = 'v')
