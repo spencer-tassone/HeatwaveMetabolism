@@ -86,31 +86,28 @@ wtemp_sites <- start_year %>%
 
 Wtemp_daily <- wtemp %>%
   filter(site_no %in% wtemp_sites$site_no) %>%
-  filter(!Date <= as.Date('1995-12-31'))
+  filter(!Date <= as.Date('1996-12-31')) # Daily mean water temperature for 20 years between 1997-2017
 
 # Remove data that is not Approved (A), Approved Revised (A R), Approved Edited (A e) or Provisional (P) ----
-Wtemp_daily$Wtemp[Wtemp_daily$Wtemp >= 50] <- NA
 Wtemp_daily$Wtemp[Wtemp_daily$Wtemp < 0] <- 0
 table(Wtemp_daily$Wtemp_cd)
 Wtemp_daily$Wtemp[Wtemp_daily$Wtemp_cd == "A [4]"] <- NA
 Wtemp_daily$Wtemp[Wtemp_daily$Wtemp_cd == "A <"] <- NA
 
 # Fill out time series for each site
-startDate <- as.Date("1996-01-01")
+startDate <- as.Date("1997-01-01")
 endDate <- as.Date("2017-01-01")
-round(time_length(difftime(endDate, startDate), "years"))
-NROW(unique(Wtemp_daily$site_no)) # 57
-endDate - startDate + 1
-full_ts <- as.data.frame(rep(seq(from = startDate, to = endDate, by = "day"), times = 57))
+x <- length(seq(from = startDate, to = endDate, by = 'day'))
+y <- NROW(unique(Wtemp_daily$site_no)) # 57 sites
+full_ts <- as.data.frame(rep(seq(from = startDate, to = endDate, by = "day"), times = y))
 colnames(full_ts)[1] <- "Date"
-length(seq(from = startDate, to = endDate, by = 'day'))
-full_site <- as.data.frame(rep(unique(Wtemp_daily$site_no),each = 7672))
+full_site <- as.data.frame(rep(unique(Wtemp_daily$site_no),each = x))
 colnames(full_site)[1] <- "site_no"
 site_ts <- cbind(full_ts, full_site)
 Wtemp_daily <- merge(site_ts, Wtemp_daily, by = c("site_no","Date"), all = TRUE)
 
 # Linear interpolate for data gaps less than or equal to 2 days
-sum(is.na(Wtemp_daily$Wtemp)) # 107,986
+sum(is.na(Wtemp_daily$Wtemp)) # 98,828
 
 library(zoo)
 
@@ -120,26 +117,116 @@ Wtemp_daily <- Wtemp_daily %>%
          Wtemp = ifelse(is.na(Wtemp), Wtemp_int, Wtemp),) %>%
   select(!Wtemp_int)
 
-sum(is.na(Wtemp_daily$Wtemp)) # 106,278
+sum(is.na(Wtemp_daily$Wtemp)) # 97,188
 
-detach("package:zoo", unload = TRUE)
+# Model water temperature using meteorological data and multiple linear regression ---- 
 
-# Determine how much Wtemp data is missing for each station
-missing_data <- Wtemp_daily %>%
+site <- site %>%
+  rename(site_no = nwis_id)
+
+latlon <- left_join(Wtemp_daily,site, by = "site_no") %>%
+  rename(site = site_no) %>%
+  group_by(site) %>%
+  summarise(lat = mean(lat),
+            lon = mean(lon)) 
+
+#* Grab meteorological data from Daymet web services to build water temperature multiple linear regressions ----
+# https://daac.ornl.gov/
+# https://www.nature.com/articles/s41597-021-00973-0#code-availability
+library(daymetr)
+
+write.table(latlon, paste0(tempdir(),"/latlon.csv"),
+            sep = ",",
+            col.names = TRUE,
+            row.names = FALSE,
+            quote = FALSE)
+
+met_dat <- download_daymet_batch(file_location = paste0(tempdir(),
+                                                        "/latlon.csv"),
+                                 start = 1997,
+                                 end = 2017,
+                                 internal = TRUE,
+                                 simplify = TRUE)
+
+library(tidyr)
+met_dat_wide <- spread(met_dat, measurement, value)
+z <- tail(which(met_dat_wide$site == '8181800'), 1)
+met_dat_wide <- met_dat_wide %>%
+  mutate(tmean = (tmax..deg.c. + tmin..deg.c.)/2,
+         totalRadiation = (met_dat_wide$srad..W.m.2.*met_dat_wide$dayl..s.)/1000000, # calculation based on daymetr website https://daymet.ornl.gov/overview
+         Date = as.Date(paste(year, yday, sep = "-"), "%Y-%j"),
+         site_no = ifelse(row_number()<=z, paste0("0", site), site)) %>%
+  filter(!Date >= as.Date('2017-01-02'))
+met_dat_wide <- met_dat_wide[,c(18,17,3:4,8:16)]
+# met_dat_wide$totalRadiation <- (met_dat_wide$srad..W.m.2.*met_dat_wide$dayl..s.)/1000000 
+wmet <- merge(met_dat_wide, Wtemp_daily, by = c("site_no","Date"), all = T)
+
+# remove leap days
+remove_leap <- as.Date(c("1996-02-29","2000-02-29","2004-02-29",
+                         "2008-02-29","2012-02-29","2016-02-29","2020-02-29"))
+wmet <- wmet %>%
+  filter(!Date %in% remove_leap)
+
+# day of year that does not recognize leap day
+wmet <- wmet %>% 
+  mutate(DoY = day(Date),
+         Month = month(Date),
+         Year = year(Date)) %>% 
+  group_by(Year, Month, site_no) %>%
+  mutate(DoY = DoY - lag(DoY, default = 0)) %>%
+  group_by(Year,site_no) %>%
+  mutate(DoY = cumsum(DoY)) %>%
+  select(-Month)
+
+# Remove sites that have zero water temperature data
+test <- wmet %>%
   group_by(site_no) %>%
-  summarise(Total_Wtemp_DataAvail = sum(!is.na(Wtemp)))
+  summarise(avail = all(is.na(Wtemp))) %>%
+  filter(avail == TRUE) 
 
-missing_data$Frac_Wtemp_Avail <- round(missing_data$Total_Wtemp_DataAvail/7672,2) # There are 7,672 days between 2017-01-01 - 1996-01-01
+wmet <- wmet %>%
+  filter(!site_no %in% test$site_no)
 
-threshold <- 0.85
-keep_sites_temp <- missing_data %>%
-  filter(Frac_Wtemp_Avail >= threshold) # 30 stations @ 85% data availability
+#* Fit models and remove sites with low predictability (R2 < 0.8) ----
+library(broom)
 
-Wtemp_daily <- Wtemp_daily %>%
-  filter(site_no %in% keep_sites_temp$site_no)
+models_fit <- wmet %>%
+  group_by(site_no) %>%
+  do(model = glance(lm(Wtemp~tmax..deg.c.+tmin..deg.c.+prcp..mm.day.+vp..Pa.+totalRadiation+DoY, data = .))) %>%
+  unnest(model)
+
+models_fit$r.squared <- round(models_fit$r.squared, digits = 2)
+good_model_fits <- models_fit[models_fit$r.squared >= 0.80,] # 51 sites with r-square >= 0.80
+round(mean(good_model_fits$r.squared),digits = 2) # answer is 0.92
+round(sd(good_model_fits$r.squared),digits = 2) # answer is 0.04
+wmet <- wmet %>%
+  filter(site_no %in% good_model_fits$site_no)
+met_dat_wide <- met_dat_wide %>%
+  filter(site_no %in% good_model_fits$site_no)
+
+#* Use models to get water temperature estimates ----
+library(purrr)
+
+f <- function (.fit, .new_data) {
+  predict(.fit, newdata = .new_data)
+}
+
+set.seed(8992)
+wmet <- wmet %>%
+  nest(data = -site_no) %>% 
+  mutate(
+    fit  = map(data, ~ lm(Wtemp~tmax..deg.c.+tmin..deg.c.+prcp..mm.day.+vp..Pa.+totalRadiation+DoY, data = .x)),
+    yhat = map2(.x = fit, .y = data, f)
+  ) %>% 
+  unnest(cols = c(data, yhat)) %>% 
+  select(-fit)
+
+wmet <- wmet %>%
+  mutate(yhat = ifelse(yhat < 0,0,round(yhat,2)),
+         corWtemp = ifelse(is.na(Wtemp), round(yhat,2), Wtemp))
 
 # Download daily mean discharge (Q) time series ----
-Q_daily_dat <- readNWISdv(siteNumbers = keep_sites_temp$site_no,
+Q_daily_dat <- readNWISdv(siteNumbers = unique(wmet$site_no),
                           parameterCd = pcode_discharge,
                           startDate = startDate,
                           endDate = endDate)
@@ -155,8 +242,8 @@ tidal_sites <- Q_daily_dat %>%
 Q_daily_dat <- Q_daily_dat %>%
   filter(!site_no %in% tidal_sites$site_no)
 
-Wtemp_daily <- Wtemp_daily %>%
-  filter(!site_no %in% tidal_sites$site_no)
+wmet <- wmet %>%
+  filter(!site_no %in% tidal_sites$site_no) # 48 sites
 
 # table(Q_daily_dat$Flow_cd)
 # Q_daily_dat$Flow[Q_daily_dat$Flow_cd == "A e"] <- NA
@@ -165,10 +252,10 @@ Q_daily_dat <- Q_daily_dat %>%
   select(c(site_no,Date,flow_cms,Flow_cd))
 
 # Determine how much Q data is missing for each station
-NROW(unique(Q_daily_dat$site_no)) # 29 out of 29 sites have concurrent daily discharge data available
-full_ts <- as.data.frame(rep(seq(from = startDate, to = endDate, by = "day"),times = 29)) 
+yy <- NROW(unique(Q_daily_dat$site_no)) # 47 out of 48 sites have concurrent daily discharge data available
+full_ts <- as.data.frame(rep(seq(from = startDate, to = endDate, by = "day"),times = yy)) 
 colnames(full_ts)[1] <- "Date"
-full_site <- as.data.frame(rep(unique(Q_daily_dat$site_no),each = 7672))
+full_site <- as.data.frame(rep(unique(Q_daily_dat$site_no),each = x))
 colnames(full_site)[1] <- "site_no"
 site_ts <- cbind(full_ts, full_site)
 Q_daily_dat <- merge(site_ts, Q_daily_dat, by = c("site_no","Date"), all = TRUE)
@@ -176,33 +263,35 @@ Q_daily_dat <- merge(site_ts, Q_daily_dat, by = c("site_no","Date"), all = TRUE)
 missing_data <- Q_daily_dat %>%
   group_by(site_no) %>%
   summarise(Total_Q_DataAvail = sum(!is.na(flow_cms)))
-missing_data$Frac_Wtemp_Avail <- round(missing_data$Total_Q_DataAvail/7672,2) # There are 9,497 days between 12/31/2021 - 1/1/1996
+missing_data$Frac_Wtemp_Avail <- round(missing_data$Total_Q_DataAvail/x,2) # There are 9,497 days between 12/31/2021 - 1/1/1996
 
-threshold <- 0.85
+threshold <- 0.90
 keep_sites_Q <- missing_data %>%
-  filter(Frac_Wtemp_Avail >= threshold) # 27 out of 29 sites have enough discharge data
+  filter(Frac_Wtemp_Avail >= threshold) # 40 out of 48 sites have enough discharge data
 
 Q_daily_dat <- Q_daily_dat %>%
-  filter(site_no %in% keep_sites_Q$site_no)
+  filter(site_no %in% keep_sites_Q$site_no,
+         !Date %in% remove_leap)
 
-wtemp_discharge <- left_join(Wtemp_daily,Q_daily_dat,by = c('site_no','Date'))
+wtemp_discharge <- left_join(wmet,Q_daily_dat,by = c('site_no','Date'))
 wtemp_discharge <- wtemp_discharge %>%
   mutate(nwis_id = site_no,
          date = Date) %>%
   select(!c(Flow_cd,Wtemp_cd,site_no,Date))
-wtemp_discharge <- wtemp_discharge[,c(4:5,2:3)]
+wtemp_discharge <- wtemp_discharge[,c(1,20,2:3,11,17:18)]
+wtemp_discharge <- wtemp_discharge %>%
+  rename(Atemp = tmean,
+         Wtemp = corWtemp)
 
-wtemp_discharge_metab <- left_join(wtemp_discharge, metab, by = c('date','nwis_id'))
+metab <- metab %>%
+  rename(site_no = nwis_id)
 
-# Linear interpolate for data gaps less than or equal to 2 days
-sum(is.na(wtemp_discharge_metab$GPP)) # 142,097
-sum(is.na(wtemp_discharge_metab$ER)) # 142,097
-sum(is.na(wtemp_discharge_metab$flow_cms)) # 17,547
+wtemp_discharge_metab <- left_join(wtemp_discharge, metab, by = c('date','site_no'))
 
 library(zoo)
 
 wtemp_discharge_metab <- wtemp_discharge_metab %>%
-  group_by(nwis_id) %>%
+  group_by(site_no) %>%
   mutate(GPP_int = na.approx(GPP, maxgap = 2, na.rm=F),
          ER_int = na.approx(ER, maxgap = 2, na.rm=F),
          flow_cms_int = na.approx(flow_cms, maxgap = 2, na.rm=F),
@@ -211,19 +300,16 @@ wtemp_discharge_metab <- wtemp_discharge_metab %>%
          flow_cms = ifelse(is.na(flow_cms), flow_cms_int, flow_cms)) %>%
   select(!c(GPP_int,ER_int,flow_cms_int))
 
-sum(is.na(wtemp_discharge_metab$GPP)) # 139,041
-sum(is.na(wtemp_discharge_metab$ER)) # 139,041
-sum(is.na(wtemp_discharge_metab$flow_cms)) # 17,545
+sum(is.na(wtemp_discharge_metab$GPP)) # 234,224
+sum(is.na(wtemp_discharge_metab$ER)) # 234,224
+sum(is.na(wtemp_discharge_metab$flow_cms)) # 59,037
 
-detach("package:zoo", unload = TRUE)
-
-wtemp_discharge_metab <- left_join(wtemp_discharge_metab, site, by = "nwis_id") %>%
-  select(nwis_id,long_name,lat,lon,date,Wtemp,flow_cms,GPP,ER)
+wtemp_discharge_metab <- left_join(wtemp_discharge_metab, site, by = "site_no") %>%
+  select(site_no,long_name,lat,lon,date,Atemp,Wtemp,flow_cms,GPP,ER)
 
 # Map ----
 
 lat_long <- wtemp_discharge_metab %>%
-  rename(site_no = nwis_id) %>%
   group_by(site_no) %>%
   summarise(lat = mean(lat),
             lon = mean(lon)) %>%
@@ -271,8 +357,8 @@ ggplot() +
           shape = 21,
           size = 3,
           alpha = 0.6) +
-  scale_fill_manual(labels = c("No (n = 2)",
-                               "Yes (n = 27)"),
+  scale_fill_manual(labels = c("No (n = 8)",
+                               "Yes (n = 40)"),
                     values = cols) +
   labs(fill = "Discharge Available") +
   coord_sf(xlim = c(-125.5, -66), ylim = c(24.3, 49.5), expand = F) +
@@ -308,9 +394,9 @@ lat_long$state_abb <- state.abb[match(lat_long$state, state.name)]
 
 # Run HW analysis ----
 
-zz <- unique(wtemp_discharge_metab$nwis_id)
+zz <- unique(wtemp_discharge_metab$site_no)
 for(i in 1:length(zz)){
-  curDat = wtemp_discharge_metab[wtemp_discharge_metab$nwis_id == zz[i],]
+  curDat = wtemp_discharge_metab[wtemp_discharge_metab$site_no == zz[i],]
   ts_Warm = ts2clm(curDat, x = date, y = Wtemp,
                    climatologyPeriod = c(min(curDat$date), max(curDat$date)))
   de_Warm = detect_event(ts_Warm, x = date, y = Wtemp )
@@ -328,28 +414,21 @@ for(i in 1:length(zz)){
   }
 }
 
-NROW(saveDatWarm) # 1,396 events
+NROW(saveDatWarm) # 2,129 events
 round(mean(saveDatWarm$duration)) # 9 days
-max(saveDatWarm$duration) # 131 days
-round(mean(saveDatWarm$intensity_max_relThresh),digits = 1) # 1.8 degrees C
-round(max(saveDatWarm$intensity_max_relThresh),digits = 1) # 9.5 degrees C
-round(mean(saveDatWarm$intensity_max),digits = 1) # 4.0 degrees C
-round(max(saveDatWarm$intensity_max),digits = 1) # 12.6 degrees C
-
-hw_site <- saveDatWarm %>%
-  group_by(Station) %>%
-  summarise(Total = max(event_no))
+max(saveDatWarm$duration) # 59 days
+round(mean(saveDatWarm$intensity_max_relThresh),digits = 1) # 1.9 degrees C
+round(max(saveDatWarm$intensity_max_relThresh),digits = 1) # 10.6 degrees C
+round(mean(saveDatWarm$intensity_max),digits = 1) # 4.4 degrees C
+round(max(saveDatWarm$intensity_max),digits = 1) # 13.5 degrees C
 
 # Mean GPP and ER during heatwaves
 
 saveDatWarm <- saveDatWarm %>%
   rename(site_no = Station)
 
-wtemp_discharge_metab <- wtemp_discharge_metab %>%
-  rename(site_no = nwis_id)
-
-sum(wtemp_discharge_metab$GPP < 0 & wtemp_discharge_metab$GPP >= -0.5, na.rm = T) # 6,108
-sum(wtemp_discharge_metab$ER > 0 & wtemp_discharge_metab$ER <= 0.5, na.rm = T) # 728
+saveCatWarm <- saveCatWarm %>%
+  rename(site_no = Station)
 
 wtemp_discharge_metab$GPP[wtemp_discharge_metab$GPP < -0.5] <- NA
 wtemp_discharge_metab$ER[wtemp_discharge_metab$ER > 0.5] <- NA
@@ -358,17 +437,6 @@ wtemp_discharge_metab$ER[wtemp_discharge_metab$ER > 0] <- 0
 
 wtemp_discharge_metab <- wtemp_discharge_metab %>%
   mutate(NEM = GPP + ER)
-
-ranges <- mapply(function(x, y, z)  seq.Date(y, z, 1), saveDatWarm$site_no,  saveDatWarm$date_start, saveDatWarm$date_end, USE.NAMES = TRUE)
-saveDatWarm$Mean_GPP <- mapply(function(a, b)
-  mean(wtemp_discharge_metab$GPP[wtemp_discharge_metab$site_no == b][match(a, wtemp_discharge_metab$date[wtemp_discharge_metab$site_no == b])], na.rm = T), ranges, names(ranges))
-saveDatWarm$Mean_ER <- mapply(function(a, b)
-  mean(wtemp_discharge_metab$ER[wtemp_discharge_metab$site_no == b][match(a, wtemp_discharge_metab$date[wtemp_discharge_metab$site_no == b])], na.rm = T), ranges, names(ranges))
-saveDatWarm$Mean_NEM <- mapply(function(a, b)
-  mean(wtemp_discharge_metab$NEM[wtemp_discharge_metab$site_no == b][match(a, wtemp_discharge_metab$date[wtemp_discharge_metab$site_no == b])], na.rm = T), ranges, names(ranges))
-
-saveCatWarm <- saveCatWarm %>%
-  rename(site_no = Station)
 
 hw <- left_join(saveDatWarm,saveCatWarm, by = c('site_no','event_no')) %>%
   select(!c(event_name,peak_date,duration.y,index_start,index_peak,index_end)) %>%
@@ -440,11 +508,7 @@ nem_plot <- ggplot(data = hw_metab, aes(x = NEM, color = category)) +
         axis.text.x = element_text(size = 16, color = "black"),
         axis.text.y = element_text(size = 16, color = "black"),
         legend.position = 'none')
-        # legend.position = c(0.15,0.8),
-        # legend.title = element_text(size = 16),
-        # legend.text = element_text(size = 16))
 
-# width = 800 height = 600
 er_plot <- ggplot(data = hw_metab, aes(x = ER, color = category)) +
   stat_ecdf(geom = 'step', pad = F, size = 1) +
   scale_color_manual(values = cols) +
@@ -458,11 +522,7 @@ er_plot <- ggplot(data = hw_metab, aes(x = ER, color = category)) +
         axis.text.x = element_text(size = 16, color = "black"),
         axis.text.y = element_text(size = 16, color = "black"),
         legend.position = 'none')
-        # legend.position = c(0.15,0.8),
-        # legend.title = element_text(size = 16),
-        # legend.text = element_text(size = 16))
 
-# width = 800 height = 600
 gpp_plot <- ggplot(data = hw_metab, aes(x = GPP, color = category)) +
   stat_ecdf(geom = 'step', pad = F, size = 1) +
   scale_color_manual(values = cols) +
@@ -654,6 +714,7 @@ gpp_sig <- hw_metab %>%
                        c('None','Strong'),
                        c('None','Severe'),
                        c('None','Extreme')),
+    test = 't.test',
     map_signif_level = T,
     y_position = seq(9,12,1),
     tip_length = 0,
@@ -679,6 +740,7 @@ er_sig <- hw_metab %>%
                        c('None','Strong'),
                        c('None','Severe'),
                        c('None','Extreme')),
+    test = 't.test',
     map_signif_level = T,
     y_position = seq(-4,2.75,2.25),
     tip_length = 0,
@@ -704,6 +766,7 @@ nem_sig <- hw_metab %>%
                        c('None','Strong'),
                        c('None','Severe'),
                        c('None','Extreme')),
+    test = 't.test',
     map_signif_level = T,
     y_position = seq(5,12.5,2.5),
     tip_length = 0,
