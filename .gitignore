@@ -1,0 +1,3 @@
+*.DS_Store
+# Ignore parameters file, too big for github storage
+/data/metabolismParameters_USGS.csv 
