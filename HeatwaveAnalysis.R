@@ -7,12 +7,13 @@ library(ggpubr)
 library(ggsignif)
 library(dataRetrieval)
 library(heatwaveR)
-library(geodata)
-library(ggspatial)
-library(sf)
+# library(geodata)
+# library(ggspatial)
+# library(sf)
 # library(remotes)
 # install_github("JVAdams/jvamisc")
 library(jvamisc)
+library(patchwork)
 
 # Metabolism Data Source
 # https://www.sciencebase.gov/catalog/item/59bff507e4b091459a5e0982
@@ -426,9 +427,9 @@ setwd("D:/School/MichiganTech/Metabolism_Heatwave")
 gpp_plot <- ggplot(data = hw_metab, aes(x = GPP, color = category)) +
   stat_ecdf(geom = 'step', pad = F, linewidth = 1) +
   scale_color_manual(values = cols) +
-  labs(color = 'Riverine\nHW Severity') +
-  xlab(bquote('Gross Primary Production (g'~O[2]~ m^-2~d^-1*')')) +
-  ylab('Cumulative Distribution') +
+  labs(color = 'Riverine\nHW Severity',
+       x = expression(atop(Gross~Primary~Production,(g~O[2]~m^-2~d^-1))),
+       y = 'Cumulative Distribution') +
   scale_y_continuous(breaks = seq(0,1,0.2), limits = c(0,1)) +
   coord_cartesian(xlim=c(0, 15)) +
   theme_bw() +
@@ -440,27 +441,11 @@ gpp_plot <- ggplot(data = hw_metab, aes(x = GPP, color = category)) +
         legend.title = element_text(size = 16),
         legend.text = element_text(size = 16))
 
-nem_plot <- ggplot(data = hw_metab, aes(x = NEM, color = category)) +
-  stat_ecdf(geom = 'step', pad = F, linewidth = 1) +
-  scale_color_manual(values = cols) +
-  labs(color = 'Riverine\nHW Severity') +
-  xlab(bquote('Net Ecosystem Metabolism (g'~O[2]~ m^-2~d^-1*')')) +
-  ylab('') +
-  scale_y_continuous(breaks = seq(0,1,0.2)) +
-  coord_cartesian(xlim=c(-16, 16)) +
-  theme_bw() +
-  theme(axis.title.x = element_text(size = 16, color = "black"),
-        axis.title.y = element_text(size = 16, color = "black"),
-        axis.text.x = element_text(size = 16, color = "black"),
-        axis.text.y = element_text(size = 16, color = "black"),
-        legend.position = 'none')
-
 er_plot <- ggplot(data = hw_metab, aes(x = ER, color = category)) +
   stat_ecdf(geom = 'step', pad = F, linewidth = 1) +
   scale_color_manual(values = cols) +
-  labs(color = 'Riverine\nHW Severity') +
-  xlab(bquote('Ecosystem Respiration (g'~O[2]~ m^-2~d^-1*')')) +
-  ylab('') +
+  labs(x = expression(atop(Ecosystem~Respiration,(g~O[2]~m^-2~d^-1))),
+       y = NULL) +
   scale_y_continuous(breaks = seq(0,1,0.2)) +
   coord_cartesian(xlim=c(-20, 0)) +
   theme_bw() +
@@ -470,8 +455,22 @@ er_plot <- ggplot(data = hw_metab, aes(x = ER, color = category)) +
         axis.text.y = element_text(size = 16, color = "black"),
         legend.position = 'none')
 
+nem_plot <- ggplot(data = hw_metab, aes(x = NEM, color = category)) +
+  stat_ecdf(geom = 'step', pad = F, linewidth = 1) +
+  scale_color_manual(values = cols) +
+  labs(x = expression(atop(Net~Ecosystem~Metabolism,(g~O[2]~m^-2~d^-1))),
+       y = NULL) +
+  scale_y_continuous(breaks = seq(0,1,0.2)) +
+  coord_cartesian(xlim=c(-16, 16)) +
+  theme_bw() +
+  theme(axis.title.x = element_text(size = 16, color = "black"),
+        axis.title.y = element_text(size = 16, color = "black"),
+        axis.text.x = element_text(size = 16, color = "black"),
+        axis.text.y = element_text(size = 16, color = "black"),
+        legend.position = 'none')
+
 # width = 1500 height = 500
-ggarrange(gpp_plot,er_plot,nem_plot, ncol = 3)
+gpp_plot + er_plot + nem_plot + plot_layout(nrow = 1)
 
 x <- hw_metab %>%
   filter(category == 'None') %>%
@@ -509,9 +508,8 @@ gpp_sig <- hw_metab %>%
   annotate('text', x = c(4.5,4,3.5,3), y = c(11.5,12.5,13.5,14.5),
            label = c('< 0.001','NS','NS', 'NS'),
            color = 'black', angle = -90, size = 5) +
-  labs(y = bquote(atop('Gross Primary Production',
-                       '('*g ~O[2]~ m^-2~d^-1*')')),
-       x = 'Riverine Heatwave Severity') +
+  labs(y = expression(atop(Gross~Primary~Production,(g~O[2]~m^-2~d^-1))),
+       x = 'Heatwave Severity') +
   theme_bw() +
   theme(axis.title.x = element_text(size = 20, color = "black"),
         axis.title.y = element_text(size = 20, color = "black"),
@@ -529,9 +527,8 @@ er_sig <- hw_metab %>%
   annotate('text', x = c(4.5,4,3.5,3), y = c(1.25,2.75,4.25,5.75),
            label = c('< 0.001','< 0.001','NS', 'NS'),
            color = 'black', angle = -90, size = 5) +
-  labs(y = bquote(atop('Ecosystem Respiration',
-                       '('*g ~O[2]~ m^-2~d^-1*')')),
-       x = '') +
+  labs(y = expression(atop(Ecosystem~Respiration,(g~O[2]~m^-2~d^-1))),
+       x = NULL) +
   theme_bw() +
   theme(axis.title.x = element_text(size = 20, color = "black"),
         axis.title.y = element_blank(),
@@ -549,9 +546,8 @@ nem_sig <- hw_metab %>%
   annotate('text', x = c(4.5,4,3.5,3), y = c(9,10.75,12.5,14.25),
            label = c('NS','NS','< 0.001', '0.002'),
            color = 'black', angle = -90, size = 5) +
-  labs(y = bquote(atop('Net Ecosystem Metabolism',
-                       '('*g ~O[2]~ m^-2~d^-1*')')),
-       x = '') +
+  labs(y = expression(atop(Net~Ecosystem~Metabolism,(g~O[2]~m^-2~d^-1))),
+       x = NULL) +
   theme_bw() +
   theme(axis.title.x = element_text(size = 20, color = "black"),
         axis.title.y = element_blank(),
@@ -561,4 +557,4 @@ nem_sig <- hw_metab %>%
         plot.margin = grid::unit(c(1,1,0,0), "mm"))
 
 # width = 1500 height = 500
-cowplot::plot_grid(gpp_sig,er_sig,nem_sig, nrow = 1, rel_widths = c(1.1,0.8,0.8))
+gpp_sig + er_sig + nem_sig + plot_layout(nrow = 1)
