@@ -10,6 +10,7 @@ library(heatwaveR)
 # library(geodata)
 # library(ggspatial)
 # library(sf)
+# install.packages("maptools", repos = "https://packagemanager.posit.co/cran/2023-10-13")
 # library(remotes)
 # install_github("JVAdams/jvamisc")
 library(jvamisc)
@@ -18,8 +19,10 @@ library(patchwork)
 # Metabolism Data Source
 # https://www.sciencebase.gov/catalog/item/59bff507e4b091459a5e0982
 
-metab <- read_tsv("D:/School/MichiganTech/Metabolism_Heatwave/daily_predictions.tsv")
-site <- read_tsv("D:/School/MichiganTech/Metabolism_Heatwave/site_data.tsv")
+setwd("D:/School/MichiganTech/Metabolism_Heatwave/")
+
+metab <- read_tsv("daily_predictions.tsv")
+site <- read_tsv("site_data.tsv")
 
 metab <- metab %>%
   mutate(GPP = round(GPP,2),
@@ -30,33 +33,34 @@ metab <- metab %>%
   left_join(., site, by = 'site_name') %>%
   select(date, nwis_id, GPP, ER) %>%
   rename(site_no = nwis_id)
-  
-stat_Cd <- "00003" # statistics parameter code = mean
-pcode_wtemp = '00010' # water temperature
-pcode_discharge = '00060' # discharge
-start_Date <- as.Date("1987-01-01")
-end_Date <- as.Date("2017-01-01")
-site_No <- unique(metab$site_no)
 
-# Download daily mean water temperature time series ----
-wtemp <- readNWISdv(siteNumbers = site_No,
-                    parameterCd = pcode_wtemp,
-                    startDate = start_Date,
-                    endDate = end_Date,
-                    statCd = stat_Cd)%>%
-  renameNWISColumns()
+# Download water temperature time series ----
+# This download is time consuming, first run was saved and can be uploaded below
+# stat_Cd <- "00003" # statistics parameter code = mean
+# pcode_wtemp = '00010' # water temperature
+# start_Date <- as.Date("1987-01-01")
+# end_Date <- as.Date("2017-01-01")
+# site_No <- unique(metab$site_no)
+# 
+# # Download daily mean water temperature time series ----
+# wtemp <- readNWISdv(siteNumbers = site_No,
+#                     parameterCd = pcode_wtemp,
+#                     startDate = start_Date,
+#                     endDate = end_Date,
+#                     statCd = stat_Cd)%>%
+#   renameNWISColumns()
+# 
+# wtemp <- wtemp %>%
+#   mutate(nwis_id = paste('nwis_',site_no, sep = '')) %>%
+#   select(c(nwis_id,site_no, Date, Wtemp, Wtemp_cd))
 
-wtemp <- wtemp %>%
-  mutate(nwis_id = paste('nwis_',site_no, sep = '')) %>%
-  select(c(nwis_id,site_no, Date, Wtemp, Wtemp_cd))
-
-# setwd("D:/School/MichiganTech/Metabolism_Heatwave")
+setwd("D:/School/MichiganTech/Metabolism_Heatwave")
 # write.csv(wtemp,'wtemp.csv',row.names = F)
-# test <- read.csv('wtemp.csv')
-# test <- test %>%
-#   select(!site_no) %>%
-#   separate(nwis_id,c('trash','site_no'),sep = '_') %>%
-#   select(!trash)
+wtemp <- read.csv('wtemp.csv')
+wtemp <- wtemp %>%
+  select(!site_no) %>%
+  separate(nwis_id,c('trash','site_no'),sep = '_') %>%
+  select(!trash)
 
 start_year <- wtemp %>%
   group_by(site_no) %>%
@@ -233,6 +237,8 @@ wmet <- wmet %>%
          corWtemp = ifelse(is.na(Wtemp), round(yhat,2), Wtemp))
 
 # Download daily mean discharge (Q) time series ----
+pcode_discharge = '00060' # discharge
+
 Q_daily_dat <- readNWISdv(siteNumbers = unique(wmet$site_no),
                           parameterCd = pcode_discharge,
                           startDate = startDate,
@@ -282,23 +288,23 @@ Q_daily_dat <- Q_daily_dat %>%
          !Date %in% remove_leap)
 
 wtemp_discharge <- left_join(wmet,Q_daily_dat,by = c('site_no','Date'))
+
 wtemp_discharge <- wtemp_discharge %>%
   mutate(nwis_id = site_no,
          date = Date) %>%
-  select(!c(Flow_cd,Wtemp_cd,site_no,Date))
-wtemp_discharge <- wtemp_discharge[,c(1,20,2:3,11,18:19)]
-wtemp_discharge <- wtemp_discharge %>%
+  select(c(nwis_id, date, tmean, corWtemp, flow_cms)) %>%
   rename(Atemp = tmean,
          Wtemp = corWtemp)
+# wtemp_discharge <- wtemp_discharge[,c(1,20,2:3,11,18:19)]
 
 wtemp_discharge_metab <- left_join(wtemp_discharge, metab, by = c('site_no', 'date'))
 
 # Linear interpolate for metabolism & discharge data gaps less than or equal to 2 days ----
 wtemp_discharge_metab <- wtemp_discharge_metab %>%
   group_by(site_no) %>%
-  mutate(GPP_int = na.approx(GPP, maxgap = 2, na.rm=F),
-         ER_int = na.approx(ER, maxgap = 2, na.rm=F),
-         flow_cms_int = na.approx(flow_cms, maxgap = 2, na.rm=F),
+  mutate(GPP_int = na.approx(GPP, maxgap = 2, na.rm = FALSE),
+         ER_int = na.approx(ER, maxgap = 2, na.rm = FALSE),
+         flow_cms_int = na.approx(flow_cms, maxgap = 2, na.rm = FALSE),
          GPP = ifelse(is.na(GPP), GPP_int, GPP),
          ER = ifelse(is.na(ER), ER_int, ER),
          flow_cms = ifelse(is.na(flow_cms), flow_cms_int, flow_cms)) %>%
@@ -558,3 +564,70 @@ nem_sig <- hw_metab %>%
 
 # width = 1500 height = 500
 gpp_sig + er_sig + nem_sig + plot_layout(nrow = 1)
+
+# Q10 estimation ----
+# width = 1000 height = 800
+hw_metab %>%
+  # filter(category == 'None') %>%
+  mutate(Wtemp_round = round(Wtemp)) %>%
+  group_by(Wtemp_round, category) %>%
+  summarise(`Gross Primary Production` = median(GPP, na.rm = TRUE),
+            `Ecosystem Respiration` = median(ER, na.rm = TRUE)) %>%
+  pivot_longer(cols = c(`Gross Primary Production`, `Ecosystem Respiration`),
+               names_to = 'MetabComponent',
+               values_to = 'MedianMetabValue') %>%
+  ggplot(aes(x = Wtemp_round, y = MedianMetabValue, color = category)) +
+  geom_line(linewidth = 1) +
+  labs(x = expression(Water~Temperature~(degree*C)),
+       y = expression(Median~Metabolic~Rate~(g~O[2]~m^-2~d^-1)),
+       color = 'Heatwave\nSeverity') +
+  scale_color_manual(values = cols) +
+  scale_y_continuous(breaks = seq(-10,15,5), limits = c(-12,18)) +
+  theme_bw() +
+  theme(axis.text = element_text(size = 14, color = 'black'),
+        axis.title = element_text(size = 14, color = 'black'),
+        strip.background = element_rect(fill = "white"),
+        strip.text = element_text(size = 14, colour = 'black'),
+        legend.position = c(0.1,0.8),
+        legend.text = element_text(size = 14, color = 'black'),
+        legend.title = element_text(size = 14, color = 'black')) +
+  facet_wrap(~MetabComponent)
+
+q10_dat <- hw_metab %>%
+  mutate(Wtemp_round = round(Wtemp)) %>%
+  group_by(Wtemp_round, category) %>%
+  summarise(MedianGPP = median(GPP, na.rm = TRUE),
+            MedianER = median(ER, na.rm = TRUE)) %>%
+  filter(Wtemp_round %in% c(10,30),
+         category %in% c('None','Moderate','Strong'))
+
+q10_dat
+
+zz <- unique(q10_dat$category)
+saveDat_Q10 <- NULL
+
+for (i in zz) {
+  curDat <- q10_dat[q10_dat$category == i,]
+  
+  MedianGPP10 <- curDat$MedianGPP[curDat$Wtemp_round == 10]
+  MedianGPP30 <- curDat$MedianGPP[curDat$Wtemp_round == 30]
+  MedianER10 <- curDat$MedianER[curDat$Wtemp_round == 10]
+  MedianER30 <- curDat$MedianER[curDat$Wtemp_round == 30]
+  Wtemp10 <- curDat$Wtemp_round[curDat$Wtemp_round == 10]
+  Wtemp30 <- curDat$Wtemp_round[curDat$Wtemp_round == 30]
+  
+  q10_GPP <- round((MedianGPP30 / MedianGPP10) ^ (10 / (Wtemp30 - Wtemp10)),2)
+  q10_ER <- round((MedianER30 / MedianER10) ^ (10 / (Wtemp30 - Wtemp10)),2)
+  
+  curInfo <- data.frame(category = i,
+                        q10_GPP = q10_GPP,
+                        q10_ER = q10_ER)
+  
+  if (is.null(saveDat)) {
+    saveDat_Q10 <- curInfo
+  } else {
+    saveDat_Q10 <- rbind(saveDat_Q10, curInfo)
+  }
+}
+
+saveDat_Q10
