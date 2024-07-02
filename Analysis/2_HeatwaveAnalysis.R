@@ -136,7 +136,7 @@ hw_metab <- left_join(hw_metab, saveDatWarm2, by = c('site_no', 'date')) %>%
          intensity_relThresh = ifelse(is.na(Wtemp), NA, intensity_relThresh),
          category = fct_relevel(category, 'None', 'Moderate', 'Strong', 'Severe', 'Extreme'))
 
-# What is the mean +/- sd HW intensity & max intensity for each severity classifications?
+# What is the mean +/- sd & max HW intensity relative to the threshold for each severity classifications?
 hw_metab %>%
   group_by(category) %>%
   summarise(Total_Days = n(),
@@ -144,10 +144,30 @@ hw_metab %>%
             SD_Intensity = round(sd(intensity_relThresh, na.rm = TRUE),2),
             Max_Intensity = round(max(intensity_relThresh, na.rm = TRUE),2))
 
-# What is the mean +/- sd HW intensity across all severity classifications?
+# What is the mean +/- sd HW intensity relative to the threshold across all severity classifications?
 hw_metab %>%
   filter(!category == 'None') %>%
   summarise(Mean_Intensity_All = round(mean(intensity_relThresh, na.rm = TRUE),2),
             SD_Intensity_All = round(sd(intensity_relThresh, na.rm = TRUE),2))
+
+# What is the mean +/- sd & max HW intensity relative to the climatology for each severity classifications?
+hw_metab %>%
+  mutate(intensity_relSeas = Wtemp - seas,
+         intensity_relSeas = ifelse(is.na(intensity_relSeas), 0, intensity_relSeas),
+         intensity_relSeas = ifelse(is.na(Wtemp), NA, intensity_relSeas)) %>%
+  group_by(category) %>%
+  summarise(Total_Days = n(),
+            Mean_Intensity_relSeas = round(mean(intensity_relSeas, na.rm = TRUE),2),
+            SD_Intensity_relSeas = round(sd(intensity_relSeas, na.rm = TRUE),2),
+            Max_Intensity_relSeas = round(max(intensity_relSeas, na.rm = TRUE),2))
+
+# What is the mean +/- sd HW intensity relative to the climatology across all severity classifications?
+hw_metab %>%
+  mutate(intensity_relSeas = Wtemp - seas,
+         intensity_relSeas = ifelse(is.na(intensity_relSeas), 0, intensity_relSeas),
+         intensity_relSeas = ifelse(is.na(Wtemp), NA, intensity_relSeas)) %>%
+  filter(!category == 'None') %>%
+  summarise(Mean_Intensity_relSeas_All = round(mean(intensity_relSeas, na.rm = TRUE),2),
+            SD_Intensity_relSeas_All = round(sd(intensity_relSeas, na.rm = TRUE),2))
 
 write.csv(hw_metab, 'hw_metab.csv', row.names = FALSE)
