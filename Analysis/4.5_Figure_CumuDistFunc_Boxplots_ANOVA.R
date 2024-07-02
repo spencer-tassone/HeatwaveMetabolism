@@ -68,6 +68,13 @@ cols = c("None" = 'blue',
           axis.text.y = element_blank(),
           legend.position = 'none'))
 
+# What proportion of the time is NEM net heterotrophic (NEM < 0) during the baseline no HW condition?
+no_HW <- hw_metab %>%
+  filter(category == 'None')
+
+ecdf_no_HW <- ecdf(no_HW$NEM)
+
+ecdf_no_HW(0)
 
 # HW Metabolism ANOVA ----
 hw_metab %>%
