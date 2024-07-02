@@ -34,12 +34,19 @@ for(i in 1:length(zz)){
 
 NROW(saveDatWarm) # 2,129 events
 round(mean(saveDatWarm$duration)) # 8 days
+round(sd(saveDatWarm$duration)) # 5 days
 max(saveDatWarm$duration) # 59 days
 round(mean(saveDatWarm$intensity_max_relThresh),digits = 1) # 1.9 degrees C
 round(max(saveDatWarm$intensity_max_relThresh),digits = 1) # 10.6 degrees C
 round(mean(saveDatWarm$intensity_max),digits = 1) # 4.4 degrees C
 round(max(saveDatWarm$intensity_max),digits = 1) # 13.5 degrees C
-table(saveCatWarm$category) # Moderate = 1635 events, Strong = 460 events, Severe = 31 events, Extreme = 3 events
+
+saveCatWarm %>%
+  group_by(category) %>%
+  summarise(Total_Events = n(), # Moderate = 1635 events, Strong = 460 events, Severe = 31 events, Extreme = 3 events
+            Mean_Duration = round(mean(duration, na.rm = TRUE)), # Moderate = 8 days, Strong = 9 days, Severe = 12 days, Extreme = 10 days
+            SD_Duration = round(sd(duration, na.rm = TRUE)),# Moderate = 5 days, Strong = 6 days, Severe = 7 days, Extreme = 5 days
+            Max_Duration = max(duration, na.rm = TRUE))# Moderate = 53 days, Strong = 59 days, Severe = 37 days, Extreme = 15 days
 
 # Extract water temperature and HW threshold during each HW event ----
 for(i in 1:length(zz)){
@@ -129,9 +136,18 @@ hw_metab <- left_join(hw_metab, saveDatWarm2, by = c('site_no', 'date')) %>%
          intensity_relThresh = ifelse(is.na(Wtemp), NA, intensity_relThresh),
          category = fct_relevel(category, 'None', 'Moderate', 'Strong', 'Severe', 'Extreme'))
 
+# What is the mean +/- sd HW intensity & max intensity for each severity classifications?
 hw_metab %>%
   group_by(category) %>%
-  summarise(TotalDays = n())%>%
-  ungroup() # None = 332,717 days, Moderate = 13,133 days, Strong = 4,209 days, Extreme = 31 days
+  summarise(Total_Days = n(),
+            Mean_Intensity = round(mean(intensity_relThresh, na.rm = TRUE),2),
+            SD_Intensity = round(sd(intensity_relThresh, na.rm = TRUE),2),
+            Max_Intensity = round(max(intensity_relThresh, na.rm = TRUE),2))
+
+# What is the mean +/- sd HW intensity across all severity classifications?
+hw_metab %>%
+  filter(!category == 'None') %>%
+  summarise(Mean_Intensity_All = round(mean(intensity_relThresh, na.rm = TRUE),2),
+            SD_Intensity_All = round(sd(intensity_relThresh, na.rm = TRUE),2))
 
 write.csv(hw_metab, 'hw_metab.csv', row.names = FALSE)
