@@ -114,7 +114,7 @@ output_data <- output_data %>%
     geom_ribbon(aes(ymin = intensity_lower,
                     ymax = intensity_upper,
                     fill = metab),
-                alpha = 0.4) +
+                alpha = 0.5) +
     labs(x = expression(Heatwave~Intensity~(degree*C)),
          y = expression(Est.~Effect~of~s(Heatwave~Intensity))) +
     scale_x_continuous(breaks = seq(-2,8,2),
@@ -142,13 +142,16 @@ output_data <- output_data %>%
           legend.text = element_text(color = 'black', size = 14)) +
     guides(fill = guide_legend(reverse = TRUE), color = guide_legend(reverse = TRUE)))
 
+# library(colorBlindness)
+# cvdPlot(intensity_plot)
+
 (doy_plot <- output_data %>%
     ggplot(aes(x = water_date, y = water_day_fit, group = metab)) +
     geom_line(aes(color = metab)) +
     geom_ribbon(aes(ymin = water_day_lower,
                     ymax = water_day_upper,
                     fill = metab),
-                alpha = 0.4) +
+                alpha = 0.5) +
     labs(x = NULL,
          y = expression(Est.~Effect~of~s(Day~of~Year))) +
     scale_x_date(breaks = seq(as.Date('2023-10-01'),
@@ -173,79 +176,3 @@ output_data <- output_data %>%
 
 # width = 600 height = 800
 intensity_plot/doy_plot
-
-# Linear mixed-effects models ----
-# test_mod1 <- lmer(gpp_log ~ intensity_relThresh + (1 | site_no),
-#                   data = hw_metab) # random intercept
-# test_mod2 <- lmer(er_log ~ intensity_relThresh + (1 | site_no),
-#                   data = hw_metab) # random intercept
-# test_mod3 <- lmer(gpp_log ~ intensity_relThresh + (1 + intensity_relThresh | site_no),
-#                   control = lmerControl(optimizer = "bobyqa",
-#                                         optCtrl = list(maxfun = 100000)),
-#                   data = hw_metab) # random slope and intercept
-# test_mod4 <- lmer(er_log ~ intensity_relThresh + (1 + intensity_relThresh | site_no),
-#                   control = lmerControl(optimizer = "bobyqa",
-#                                         optCtrl = list(maxfun = 100000)),
-#                   data = hw_metab) # random slope and intercept
-# test_mod5 <- lmer(gpp_log ~ intensity_relThresh + category2 + (1 + intensity_relThresh | site_no),
-#                   control = lmerControl(optimizer = "bobyqa",
-#                                         optCtrl = list(maxfun = 100000)),
-#                   data = hw_metab) # random slope and intercept
-# test_mod6 <- lmer(er_log ~ intensity_relThresh + category2 + (1 + intensity_relThresh | site_no),
-#                   control = lmerControl(optimizer = "bobyqa",
-#                                         optCtrl = list(maxfun = 100000)),
-#                   data = hw_metab) # random slope and intercept
-# 
-# summary(test_mod1)
-# summary(test_mod2)
-# summary(test_mod3)
-# summary(test_mod4)
-# summary(test_mod5)
-# summary(test_mod6)
-# 
-# plot(test_mod1)
-# qqnorm(resid(test_mod1))
-# qqline(resid(test_mod1))
-# 
-# plot(test_mod2)
-# qqnorm(resid(test_mod2))
-# qqline(resid(test_mod2))
-# 
-# plot(test_mod3)
-# qqnorm(resid(test_mod3))
-# qqline(resid(test_mod3))
-# 
-# plot(test_mod4)
-# qqnorm(resid(test_mod4))
-# qqline(resid(test_mod4))
-# 
-# plot(test_mod5)
-# qqnorm(resid(test_mod5))
-# qqline(resid(test_mod5))
-# 
-# plot(test_mod6)
-# qqnorm(resid(test_mod6))
-# qqline(resid(test_mod6))
-# 
-# library(ggeffects)
-# 
-# pred.gpp <- ggpredict(test_mod1, terms = c('intensity'))
-# pred.er <- ggpredict(test_mod2, terms = c('intensity'))
-# 
-# ggplot(pred.gpp) + 
-#   geom_point(data = hw_metab,
-#              aes(x = intensity, y = gpp_log, colour = category)) + 
-#   geom_line(aes(x = x, y = predicted)) +          # slope
-#   geom_ribbon(aes(x = x, ymin = predicted - std.error, ymax = predicted + std.error), 
-#               fill = "lightgrey", alpha = 0.5) +  # error band
-#   scale_color_manual(values = cols) +
-#   theme_bw()
-# 
-# ggplot(pred.er) + 
-#   geom_point(data = hw_metab,
-#              aes(x = intensity, y = er_log, colour = category)) + 
-#   geom_line(aes(x = x, y = predicted)) +          # slope
-#   geom_ribbon(aes(x = x, ymin = predicted - std.error, ymax = predicted + std.error), 
-#               fill = "lightgrey", alpha = 0.5) +  # error band
-#   scale_color_manual(values = cols) +
-#   theme_bw()
