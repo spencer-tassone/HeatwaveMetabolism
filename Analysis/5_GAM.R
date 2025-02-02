@@ -4,7 +4,6 @@ dev.off()
 library(tidyverse)
 library(patchwork)
 library(EflowStats)
-library(lme4)
 library(mgcv)
 
 setwd("D:/School/MichiganTech/Metabolism_Heatwave/Data")
@@ -32,13 +31,13 @@ hist(hw_metab$abs_ER)
 hist(hw_metab$er_log)
 
 # Generalized additive models ----
-
 hw_metab <- hw_metab %>%
   mutate(water_day = get_waterYearDay(date))
 
 model_gpp <- gam(
   gpp_log ~ s(intensity_relThresh) + s(water_day, bs = 'cc') + s(site_no2, bs = 're'),
   data = hw_metab,
+  method = 'REML',
   family = gaussian
 )
 
@@ -48,14 +47,14 @@ plot(model_gpp)
 model_er <- gam(
   er_log ~ s(intensity_relThresh) + s(water_day, bs = 'cc') + s(site_no2, bs = 're'),
   data = hw_metab,
+  method = 'REML',
   family = gaussian
 )
 
 summary(model_er)
 plot(model_er)
 
-# Extract output of model 3 to remake figure in ggplot2
-# Extract the smooth term components for s(intensity)
+# Extract output of GAM models to remake figures in ggplot
 gpp_output <- plot.gam(model_gpp, pages = 1, seWithMean = TRUE)
 er_output <- plot.gam(model_er, pages = 1, seWithMean = TRUE)
 
@@ -110,11 +109,11 @@ output_data <- output_data %>%
 
 (intensity_plot <- output_data %>%
     ggplot(aes(x = intensity, y = intensity_fit, group = metab)) +
-    geom_line(aes(color = metab)) +
     geom_ribbon(aes(ymin = intensity_lower,
                     ymax = intensity_upper,
                     fill = metab),
                 alpha = 0.5) +
+    geom_line(aes(color = metab), linewidth = 1) +
     labs(x = expression(Heatwave~Intensity~(degree*C)),
          y = expression(Est.~Effect~of~s(Heatwave~Intensity))) +
     scale_x_continuous(breaks = seq(-2,8,2),
@@ -147,11 +146,11 @@ output_data <- output_data %>%
 
 (doy_plot <- output_data %>%
     ggplot(aes(x = water_date, y = water_day_fit, group = metab)) +
-    geom_line(aes(color = metab)) +
     geom_ribbon(aes(ymin = water_day_lower,
                     ymax = water_day_upper,
                     fill = metab),
                 alpha = 0.5) +
+    geom_line(aes(color = metab), linewidth = 1) +
     labs(x = NULL,
          y = expression(Est.~Effect~of~s(Day~of~Year))) +
     scale_x_date(breaks = seq(as.Date('2023-10-01'),
@@ -176,3 +175,26 @@ output_data <- output_data %>%
 
 # width = 600 height = 800
 intensity_plot/doy_plot
+
+# what is the range of the estimated effect of heatwave
+# intensity and seasonal change on GPP and ER? 
+gpp_output_data %>%
+  summarise(intensity_range = round(max(intensity_fit) - min(intensity_fit), 2),
+            seasonal_range = round(max(water_day_fit) - min(water_day_fit), 2))
+
+er_output_data %>%
+  summarise(intensity_range = round(max(intensity_fit) - min(intensity_fit), 2),
+            seasonal_range = round(max(water_day_fit) - min(water_day_fit), 2))
+
+# what is the linear rate of change when GPP and ER are < zero?
+gpp_mod_dat <- gpp_output_data %>%
+  filter(intensity < 0)
+
+er_mod_dat <- er_output_data %>%
+  filter(intensity < 0)
+
+gpp_mod <- lm(intensity_fit ~ intensity, data = gpp_mod_dat)
+summary(gpp_mod)
+
+er_mod <- lm(intensity_fit ~ intensity, data = er_mod_dat)
+summary(er_mod)
