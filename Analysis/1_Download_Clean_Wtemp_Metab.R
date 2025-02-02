@@ -2,7 +2,6 @@ rm(list = ls())
 dev.off()
 
 library(tidyverse)
-library(readr)
 library(dataRetrieval)
 library(daymetr)
 
@@ -21,6 +20,19 @@ metab <- metab %>%
   left_join(., site, by = 'site_name') %>%
   select(date, nwis_id, GPP, ER) %>%
   rename(site_no = nwis_id)
+
+# Average number of metabolism estimates (in months) per site?
+metab %>%
+  group_by(site_no) %>%
+  summarise(Count_GPP = sum(!is.na(GPP)),
+            Count_ER = sum(!is.na(ER))) %>%
+  ungroup() %>%
+  summarise(Mean_GPP = mean(Count_GPP)/30,
+            Median_GPP = median(Count_GPP)/30,
+            SD_GPP = sd(Count_GPP)/30,
+            Mean_ER = mean(Count_ER)/30,
+            Median_ER = median(Count_ER)/30,
+            SD_ER = sd(Count_ER)/30)
 
 # Download water temperature time series ----
 # This download is time consuming, first run was saved and can be uploaded below
@@ -108,20 +120,20 @@ site_ts <- cbind(full_ts, full_site)
 Wtemp_daily <- merge(site_ts, Wtemp_daily, by = c("site_no","Date"), all = TRUE)
 
 # Linear interpolate for data gaps less than or equal to 2 days ----
-sum(is.na(Wtemp_daily$Wtemp)) # 98,828
-
-library(zoo)
+aa <- sum(is.na(Wtemp_daily$Wtemp)) # 98,828
 
 Wtemp_daily <- Wtemp_daily %>%
   group_by(site_no) %>%
-  mutate(Wtemp_int = na.approx(Wtemp, maxgap = 2, na.rm=F),
+  mutate(Wtemp_int = zoo::na.approx(Wtemp, maxgap = 2, na.rm=F),
          Wtemp = ifelse(is.na(Wtemp), Wtemp_int, Wtemp),) %>%
   select(!Wtemp_int)
 
-sum(is.na(Wtemp_daily$Wtemp)) # 97,188
+bb <- sum(is.na(Wtemp_daily$Wtemp)) # 97,188
+
+### How much water temp data was linearly interpolated? ----
+round((aa-bb)/NROW(Wtemp_daily)*100, 1) # 0.4%
 
 # Model water temperature using meteorological data and multiple linear regression ---- 
-
 site <- site %>%
   rename(site_no = nwis_id)
 
@@ -218,9 +230,25 @@ wmet <- wmet %>%
   unnest(cols = c(data, yhat)) %>% 
   select(-fit)
 
+aa <- sum(is.na(wmet$Wtemp)) # 76,482
+
 wmet <- wmet %>%
   mutate(yhat = ifelse(yhat < 0,0,round(yhat,2)),
          corWtemp = ifelse(is.na(Wtemp), round(yhat,2), Wtemp))
+
+bb <- sum(is.na(wmet$corWtemp))
+
+### How much water temp data was linearly interpolated? ----
+round((aa-bb)/NROW(wmet)*100, 1) # 20.5%
+
+wmet %>% 
+  ggplot(aes(x = Wtemp, y = yhat)) +
+  geom_point(alpha = 0.1) +
+  geom_abline(slope = 1, intercept = 0, linetype = 'longdash', color = 'red') +
+  stat_smooth(method = 'lm') +
+  labs(x = 'Observed Water Temp (C)',
+       y = 'Modeled Water Temp (C)') +
+  theme_bw()
 
 # Download daily mean discharge (Q) time series ----
 pcode_discharge = '00060' # discharge
@@ -286,20 +314,23 @@ wtemp_discharge <- wtemp_discharge %>%
 wtemp_discharge_metab <- left_join(wtemp_discharge, metab, by = c('site_no', 'date'))
 
 # Linear interpolate for metabolism & discharge data gaps less than or equal to 2 days ----
+aa <- sum(is.na(wtemp_discharge_metab$GPP)) # 239,636
+sum(is.na(wtemp_discharge_metab$ER)) # 239,636
+sum(is.na(wtemp_discharge_metab$flow_cms)) # 59,037
+
 wtemp_discharge_metab <- wtemp_discharge_metab %>%
   group_by(site_no) %>%
-  mutate(GPP_int = na.approx(GPP, maxgap = 2, na.rm = FALSE),
-         ER_int = na.approx(ER, maxgap = 2, na.rm = FALSE),
-         flow_cms_int = na.approx(flow_cms, maxgap = 2, na.rm = FALSE),
-         GPP = ifelse(is.na(GPP), GPP_int, GPP),
-         ER = ifelse(is.na(ER), ER_int, ER),
-         flow_cms = ifelse(is.na(flow_cms), flow_cms_int, flow_cms)) %>%
-  select(!c(GPP_int,ER_int,flow_cms_int)) %>%
+  mutate(GPP = zoo::na.approx(GPP, maxgap = 2, na.rm = FALSE),
+         ER = zoo::na.approx(ER, maxgap = 2, na.rm = FALSE),
+         flow_cms = zoo::na.approx(flow_cms, maxgap = 2, na.rm = FALSE)) %>%
   ungroup()
 
-sum(is.na(wtemp_discharge_metab$GPP)) # 234,224
+bb <- sum(is.na(wtemp_discharge_metab$GPP)) # 234,224
 sum(is.na(wtemp_discharge_metab$ER)) # 234,224
 sum(is.na(wtemp_discharge_metab$flow_cms)) # 59,037
+
+### How much metabolism data was interpolated? ----
+round((aa-bb)/NROW(wtemp_discharge_metab)*100, 1) # 1.5%
 
 wtemp_discharge_metab <- left_join(wtemp_discharge_metab, site, by = "site_no") %>%
   select(site_no,long_name,lat,lon,date,Atemp,Wtemp,flow_cms,GPP,ER)
