@@ -83,7 +83,7 @@ wtemp_discharge_metab <- wtemp_discharge_metab %>%
          GPP = ifelse(GPP < 0, 0, GPP),
          ER = ifelse(ER > 0.5, NA, ER),
          ER = ifelse(ER > 0, 0, ER),
-         NEM = GPP + ER)
+         NEP = GPP - abs(ER))
 
 # Combine HW event metrics with HW categories
 hw <- left_join(saveDatWarm,saveCatWarm, by = c('site_no','event_no')) %>%
@@ -111,7 +111,7 @@ hw_metab <- do.call(rbind, subset_list)
 hw_metab <- left_join(wtemp_discharge_metab,hw_metab, by = c('site_no','date')) %>%
   mutate(category = ifelse(is.na(category),'None',category),
          i_max = ifelse(is.na(i_max), 0, i_max)) %>%
-  select(!c(long_name.y,lat.y,lon.y,Atemp.y,Wtemp.y,flow_cms.y,GPP.y,ER.y,NEM.y)) %>%
+  select(!c(long_name.y,lat.y,lon.y,Atemp.y,Wtemp.y,flow_cms.y,GPP.y,ER.y,NEP.y)) %>%
   rename(long_name = long_name.x,
          lat = lat.x,
          lon = lon.x,
@@ -120,7 +120,7 @@ hw_metab <- left_join(wtemp_discharge_metab,hw_metab, by = c('site_no','date')) 
          flow_cms = flow_cms.x,
          GPP = GPP.x,
          ER = ER.x,
-         NEM = NEM.x) %>%
+         NEP = NEP.x) %>%
   mutate(category = case_match(category,
                                'None' ~ 'None',
                                'I Moderate' ~ 'Moderate',
@@ -134,7 +134,8 @@ hw_metab <- left_join(hw_metab, saveDatWarm2, by = c('site_no', 'date')) %>%
   rename(Wtemp = Wtemp.x) %>%
   mutate(intensity_relThresh = ifelse(is.na(intensity_relThresh), 0, intensity_relThresh),
          intensity_relThresh = ifelse(is.na(Wtemp), NA, intensity_relThresh),
-         category = fct_relevel(category, 'None', 'Moderate', 'Strong', 'Severe', 'Extreme'))
+         category = fct_relevel(category, 'None', 'Moderate', 'Strong', 'Severe', 'Extreme')) %>% 
+  select(site_no, long_name, lat, lon, date, Wtemp, GPP, ER, NEP, category, i_max, seas, thresh, intensity_relThresh)
 
 # What is the mean +/- sd & max HW intensity relative to the threshold for each severity classifications?
 hw_metab %>%
