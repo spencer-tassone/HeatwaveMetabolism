@@ -81,16 +81,16 @@ er_output_data <- data.frame(
 
 # Add confidence intervals
 gpp_output_data <- gpp_output_data %>%
-  mutate(intensity_lower = intensity_fit - 2 * intensity_se.fit,
-         intensity_upper = intensity_fit + 2 * intensity_se.fit,
-         water_day_lower = water_day_fit - 2 * water_day_se.fit,
-         water_day_upper = water_day_fit + 2 * water_day_se.fit)
+  mutate(intensity_lower = intensity_fit - 1.96 * intensity_se.fit,
+         intensity_upper = intensity_fit + 1.96 * intensity_se.fit,
+         water_day_lower = water_day_fit - 1.96 * water_day_se.fit,
+         water_day_upper = water_day_fit + 1.96 * water_day_se.fit)
 
 er_output_data <- er_output_data %>%
-  mutate(intensity_lower = intensity_fit - 2 * intensity_se.fit,
-         intensity_upper = intensity_fit + 2 * intensity_se.fit,
-         water_day_lower = water_day_fit - 2 * water_day_se.fit,
-         water_day_upper = water_day_fit + 2 * water_day_se.fit)
+  mutate(intensity_lower = intensity_fit - 1.96 * intensity_se.fit,
+         intensity_upper = intensity_fit + 1.96 * intensity_se.fit,
+         water_day_lower = water_day_fit - 1.96 * water_day_se.fit,
+         water_day_upper = water_day_fit + 1.96 * water_day_se.fit)
 
 output_data <- rbind(gpp_output_data, er_output_data)
 
