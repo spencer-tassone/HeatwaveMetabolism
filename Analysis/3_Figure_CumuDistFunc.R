@@ -6,6 +6,8 @@ library(truncnorm)
 library(egg)
 
 # Conceptual ECDF ----
+set.seed(333)
+
 # No heatwaves
 norm <- data.frame(
   GPP = rtruncnorm(10000, a = 0, b = 15, mean = 2.5, sd = 3),
@@ -22,7 +24,7 @@ mod <- data.frame(
 
 # Strong strength heatwaves
 strong <- data.frame(
-  GPP = rtruncnorm(10000, a = 0, b = 15, mean = 2.5, sd = 3.1),
+  GPP = rtruncnorm(10000, a = 0, b = 15, mean = 2.65, sd = 3.1),
   ER = rtruncnorm(10000, a = 0, b = 20, 8, 5)) %>%
   mutate(NEP = GPP - abs(ER),
          category = 'Strong')
@@ -51,11 +53,11 @@ cols = c("None" = 'blue',
          "Extreme" = '#2D0000')
 
 conceptual_dat$category <- factor(conceptual_dat$category,
-                            levels = c('None',
-                                       'Moderate',
-                                       'Strong',
-                                       'Severe',
-                                       'Extreme'))
+                                  levels = c('None',
+                                             'Moderate',
+                                             'Strong',
+                                             'Severe',
+                                             'Extreme'))
 
 (gpp_conceptual <- ggplot(data = conceptual_dat, aes(x = GPP, color = category)) +
     stat_ecdf(geom = 'step', pad = F, linewidth = 1.5) +
@@ -167,4 +169,5 @@ hw_metab <- hw_metab %>%
 
 # width = 1300, height = 700
 ggarrange(gpp_conceptual,er_conceptual,nep_conceptual,gpp_actual,er_actual,nep_actual, nrow = 2)   
+
 
