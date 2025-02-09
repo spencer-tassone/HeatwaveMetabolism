@@ -61,12 +61,18 @@ dunn.test::dunn.test(hw_metab$abs_ER, hw_metab$category, kw = FALSE, method = 'b
 dunn.test::dunn.test(hw_metab$NEP, hw_metab$category, kw = FALSE, method = 'bh', altp = TRUE, rmc = TRUE)
 
 # Figures (boxplots) ----
+cols = c("None" = 'blue',
+         "Moderate" = '#FFC866' ,
+         "Strong" = '#FF6900' ,
+         "Severe" = '#9E0000',
+         "Extreme" = '#2D0000')
+
 (gpp_raw <- hw_metab %>%
    ggplot(aes(x = category, y = GPP, color = category)) +
-   geom_boxplot(outlier.shape = NA) +
+   geom_boxplot(outlier.shape = NA, linewidth = 1, fatten = 1) +
    stat_summary(fun = mean, geom = "point", shape = 4, size = 3) + # add the mean (line is median)
-   coord_cartesian(ylim = c(0, 15)) +
-   scale_y_continuous(breaks = seq(0,15,5)) +
+   coord_cartesian(ylim = c(0, 10.5)) +
+   scale_y_continuous(breaks = seq(0,10,2)) +
    scale_color_manual(values = cols) +
    labs(y = expression(atop(Metabolism~Rate,(g~O[2]~m^-2~d^-1))),
         x = NULL,
@@ -81,7 +87,7 @@ dunn.test::dunn.test(hw_metab$NEP, hw_metab$category, kw = FALSE, method = 'bh',
 
 (er_raw <- hw_metab %>%
     ggplot(aes(x = category, y = abs_ER, color = category)) +
-    geom_boxplot(outlier.shape = NA) +
+    geom_boxplot(outlier.shape = NA, linewidth = 1, fatten = 1) +
     stat_summary(fun = mean, geom = "point", shape = 4, size = 3) + # add the mean (line is median)
     coord_cartesian(ylim = c(0,20)) +
     scale_y_continuous(breaks = seq(0,20,5)) +
@@ -98,7 +104,7 @@ dunn.test::dunn.test(hw_metab$NEP, hw_metab$category, kw = FALSE, method = 'bh',
 
 (nep_raw <- hw_metab %>%
     ggplot(aes(x = category, y = NEP, color = category)) +
-    geom_boxplot(outlier.shape = NA) +
+    geom_boxplot(outlier.shape = NA, linewidth = 1, fatten = 1) +
     stat_summary(fun = mean, geom = "point", shape = 4, size = 3) + # add the mean (line is median)
     coord_cartesian(ylim = c(-16,10)) +
     scale_y_continuous(breaks = seq(-15,10,5)) +
@@ -115,8 +121,8 @@ dunn.test::dunn.test(hw_metab$NEP, hw_metab$category, kw = FALSE, method = 'bh',
 
 (gpp_zscore <- hw_metab %>%
     ggplot(aes(x = category, y = z_score_gpp, color = category)) +
-    geom_boxplot(outlier.shape = NA) +
-    coord_cartesian(ylim = c(-3, 3)) +
+    geom_boxplot(outlier.shape = NA, linewidth = 1, fatten = 1) +
+    coord_cartesian(ylim = c(-3.25, 3.25)) +
     scale_y_continuous(breaks = seq(-3,3,1)) +
     scale_color_manual(values = cols) +
     labs(y = 'Z-score',
@@ -131,8 +137,8 @@ dunn.test::dunn.test(hw_metab$NEP, hw_metab$category, kw = FALSE, method = 'bh',
 
 (er_zscore <- hw_metab %>%
     ggplot(aes(x = category, y = z_score_er, color = category)) +
-    geom_boxplot(outlier.shape = NA) +
-    coord_cartesian(ylim = c(-3, 3)) +
+    geom_boxplot(outlier.shape = NA, linewidth = 1, fatten = 1) +
+    coord_cartesian(ylim = c(-3.25, 3.25)) +
     scale_y_continuous(breaks = seq(-3,3,1)) +
     scale_color_manual(values = cols) +
     labs(y = NULL,
@@ -147,8 +153,8 @@ dunn.test::dunn.test(hw_metab$NEP, hw_metab$category, kw = FALSE, method = 'bh',
 
 (nep_zscore <- hw_metab %>%
     ggplot(aes(x = category, y = z_score_nep, color = category)) +
-    geom_boxplot(outlier.shape = NA) +
-    coord_cartesian(ylim = c(-3, 3)) +
+    geom_boxplot(outlier.shape = NA, linewidth = 1, fatten = 1) +
+    coord_cartesian(ylim = c(-3.25, 3.25)) +
     scale_y_continuous(breaks = seq(-3,3,1)) +
     scale_color_manual(values = cols) +
     labs(y = NULL,
@@ -162,4 +168,4 @@ dunn.test::dunn.test(hw_metab$NEP, hw_metab$category, kw = FALSE, method = 'bh',
           plot.margin = grid::unit(c(1,1,0,0), "mm")))
 
 # width = 1300, height = 700
-ggarrange(gpp_raw,er_raw,nep_raw,gpp_zscore,er_zscore,nep_zscore, nrow = 2)   
+ggarrange(gpp_raw,er_raw,nep_raw,gpp_zscore,er_zscore,nep_zscore, nrow = 2)
