@@ -77,13 +77,31 @@ saveDatWarm <- saveDatWarm %>%
 saveCatWarm <- saveCatWarm %>%
   rename(site_no = Station)
 
-# Data cleaning based on Appling et al. 2018
+# Data cleaning based on Appling et al. 2018 (remove GPP and ER if either are biologically unrealistic)
 wtemp_discharge_metab <- wtemp_discharge_metab %>%
   mutate(GPP = ifelse(GPP < -0.5, NA, GPP),
+         ER = ifelse(GPP < -0.5, NA, ER),
          GPP = ifelse(GPP < 0, 0, GPP),
          ER = ifelse(ER > 0.5, NA, ER),
-         ER = ifelse(ER > 0, 0, ER),
-         NEP = GPP - abs(ER))
+         GPP = ifelse(ER > 0.5, NA, GPP),
+         ER = ifelse(ER > 0, 0, ER))
+
+# Linearly interpolate GPP and ER if gaps are <=2 days ----
+initial <- NROW(na.omit(wtemp_discharge_metab$GPP)) # 102,874
+NROW(na.omit(wtemp_discharge_metab$ER)) # 102,874
+
+wtemp_discharge_metab <- wtemp_discharge_metab %>% 
+  group_by(site_no) %>% 
+  arrange(-desc(date)) %>% 
+  mutate(GPP = zoo::na.approx(GPP, maxgap = 2, na.rm = FALSE),
+         ER = zoo::na.approx(ER, maxgap = 2, na.rm = FALSE),
+         NEP = GPP - abs(ER)) %>% 
+  ungroup()
+
+final <- NROW(na.omit(wtemp_discharge_metab$GPP)) # 111,029
+NROW(na.omit(wtemp_discharge_metab$ER)) # 111,029
+
+round(((final - initial)/initial)*100, digits = 1) # 7.9% of metab data was linearly interpolated
 
 # Combine HW event metrics with HW categories
 hw <- left_join(saveDatWarm,saveCatWarm, by = c('site_no','event_no')) %>%
