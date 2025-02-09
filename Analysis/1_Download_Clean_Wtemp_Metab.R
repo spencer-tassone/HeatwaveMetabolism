@@ -120,18 +120,20 @@ site_ts <- cbind(full_ts, full_site)
 Wtemp_daily <- merge(site_ts, Wtemp_daily, by = c("site_no","Date"), all = TRUE)
 
 # Linear interpolate for data gaps less than or equal to 2 days ----
-aa <- sum(is.na(Wtemp_daily$Wtemp)) # 98,828
+initial <- NROW(na.omit(Wtemp_daily$Wtemp)) # 317,614
 
 Wtemp_daily <- Wtemp_daily %>%
   group_by(site_no) %>%
+  arrange(-desc(Date)) %>%
   mutate(Wtemp_int = zoo::na.approx(Wtemp, maxgap = 2, na.rm=F),
          Wtemp = ifelse(is.na(Wtemp), Wtemp_int, Wtemp),) %>%
-  select(!Wtemp_int)
+  select(!Wtemp_int) %>% 
+  ungroup()
 
-bb <- sum(is.na(Wtemp_daily$Wtemp)) # 97,188
+final <- NROW(na.omit(Wtemp_daily$Wtemp)) # 319,254
 
 ### How much water temp data was linearly interpolated? ----
-round((aa-bb)/NROW(Wtemp_daily)*100, 1) # 0.4%
+round(((final - initial)/initial)*100, digits = 1) # 0.5%
 
 # Model water temperature using meteorological data and multiple linear regression ---- 
 site <- site %>%
@@ -230,16 +232,16 @@ wmet <- wmet %>%
   unnest(cols = c(data, yhat)) %>% 
   select(-fit)
 
-aa <- sum(is.na(wmet$Wtemp)) # 76,482
+initial2 <- NROW(na.omit(wmet$Wtemp)) # 295,869
 
 wmet <- wmet %>%
   mutate(yhat = ifelse(yhat < 0,0,round(yhat,2)),
          corWtemp = ifelse(is.na(Wtemp), round(yhat,2), Wtemp))
 
-bb <- sum(is.na(wmet$corWtemp))
+final2 <- NROW(na.omit(wmet$corWtemp)) # 372,289
 
 ### How much water temp data was linearly interpolated? ----
-round((aa-bb)/NROW(wmet)*100, 1) # 20.5%
+round(((final2 - initial2)/initial2)*100, digits = 1) # 25.8%
 
 wmet %>% 
   ggplot(aes(x = Wtemp, y = yhat)) +
@@ -250,7 +252,7 @@ wmet %>%
        y = 'Modeled Water Temp (C)') +
   theme_bw()
 
-# Download daily mean discharge (Q) time series ----
+# Download daily mean discharge (Q) time series (need to remove tidal sites) ----
 pcode_discharge = '00060' # discharge
 
 Q_daily_dat <- readNWISdv(siteNumbers = unique(wmet$site_no),
@@ -313,24 +315,17 @@ wtemp_discharge <- wtemp_discharge %>%
 
 wtemp_discharge_metab <- left_join(wtemp_discharge, metab, by = c('site_no', 'date'))
 
-# Linear interpolate for metabolism & discharge data gaps less than or equal to 2 days ----
-aa <- sum(is.na(wtemp_discharge_metab$GPP)) # 239,636
-sum(is.na(wtemp_discharge_metab$ER)) # 239,636
-sum(is.na(wtemp_discharge_metab$flow_cms)) # 59,037
+# Linear interpolate discharge data gaps less than or equal to 2 days ----
+initial3 <- NROW(na.omit(wtemp_discharge_metab$flow_cms)) # 291,411
 
 wtemp_discharge_metab <- wtemp_discharge_metab %>%
   group_by(site_no) %>%
-  mutate(GPP = zoo::na.approx(GPP, maxgap = 2, na.rm = FALSE),
-         ER = zoo::na.approx(ER, maxgap = 2, na.rm = FALSE),
-         flow_cms = zoo::na.approx(flow_cms, maxgap = 2, na.rm = FALSE)) %>%
+  arrange(-desc(date)) %>%
+  mutate(
+    flow_cms = zoo::na.approx(flow_cms, maxgap = 2, na.rm = FALSE)) %>%
   ungroup()
 
-bb <- sum(is.na(wtemp_discharge_metab$GPP)) # 234,224
-sum(is.na(wtemp_discharge_metab$ER)) # 234,224
-sum(is.na(wtemp_discharge_metab$flow_cms)) # 59,037
-
-### How much metabolism data was interpolated? ----
-round((aa-bb)/NROW(wtemp_discharge_metab)*100, 1) # 1.5%
+final3 <- NROW(na.omit(wtemp_discharge_metab$flow_cms)) # 291,411
 
 wtemp_discharge_metab <- left_join(wtemp_discharge_metab, site, by = "site_no") %>%
   select(site_no,long_name,lat,lon,date,Atemp,Wtemp,flow_cms,GPP,ER)
