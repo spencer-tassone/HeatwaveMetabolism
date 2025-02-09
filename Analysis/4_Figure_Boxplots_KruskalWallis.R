@@ -122,6 +122,7 @@ cols = c("None" = 'blue',
 (gpp_zscore <- hw_metab %>%
     ggplot(aes(x = category, y = z_score_gpp, color = category)) +
     geom_boxplot(outlier.shape = NA, linewidth = 1, fatten = 1) +
+    stat_summary(fun = mean, geom = "point", shape = 4, size = 3) + # add the mean (line is median)
     coord_cartesian(ylim = c(-3.25, 3.25)) +
     scale_y_continuous(breaks = seq(-3,3,1)) +
     scale_color_manual(values = cols) +
@@ -138,6 +139,7 @@ cols = c("None" = 'blue',
 (er_zscore <- hw_metab %>%
     ggplot(aes(x = category, y = z_score_er, color = category)) +
     geom_boxplot(outlier.shape = NA, linewidth = 1, fatten = 1) +
+    stat_summary(fun = mean, geom = "point", shape = 4, size = 3) + # add the mean (line is median)
     coord_cartesian(ylim = c(-3.25, 3.25)) +
     scale_y_continuous(breaks = seq(-3,3,1)) +
     scale_color_manual(values = cols) +
@@ -154,6 +156,7 @@ cols = c("None" = 'blue',
 (nep_zscore <- hw_metab %>%
     ggplot(aes(x = category, y = z_score_nep, color = category)) +
     geom_boxplot(outlier.shape = NA, linewidth = 1, fatten = 1) +
+    stat_summary(fun = mean, geom = "point", shape = 4, size = 3) + # add the mean (line is median)
     coord_cartesian(ylim = c(-3.25, 3.25)) +
     scale_y_continuous(breaks = seq(-3,3,1)) +
     scale_color_manual(values = cols) +
@@ -168,4 +171,4 @@ cols = c("None" = 'blue',
           plot.margin = grid::unit(c(1,1,0,0), "mm")))
 
 # width = 1300, height = 700
-ggarrange(gpp_raw,er_raw,nep_raw,gpp_zscore,er_zscore,nep_zscore, nrow = 2)
+ggarrange(gpp_raw,er_raw,nep_raw,gpp_zscore,er_zscore,nep_zscore, nrow = 2)  
