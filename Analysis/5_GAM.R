@@ -26,9 +26,9 @@ hw_metab <- hw_metab %>%
 # Distributions
 hist(hw_metab$i_max)
 hist(hw_metab$GPP)
-hist(hw_metab$gpp_log)
 hist(hw_metab$abs_ER)
-hist(hw_metab$er_log)
+hist(hw_metab$gpp_log) # distribution positively skewed
+hist(hw_metab$er_log) # approximately normal distribution
 
 # Generalized additive models ----
 hw_metab <- hw_metab %>%
@@ -48,13 +48,13 @@ model_er <- gam(
   er_log ~ s(intensity_relThresh) + s(water_day, bs = 'cc') + s(site_no2, bs = 're'),
   data = hw_metab,
   method = 'REML',
-  family = gaussian
+  family = gaussian 
 )
 
 summary(model_er)
 plot(model_er)
 
-# Extract output of GAM models to remake figures in ggplot
+# Extract output of GAM models to remake figures in ggplot ----
 gpp_output <- plot.gam(model_gpp, pages = 1, seWithMean = TRUE)
 er_output <- plot.gam(model_er, pages = 1, seWithMean = TRUE)
 
@@ -118,8 +118,8 @@ output_data <- output_data %>%
          y = expression(Est.~Effect~of~s(Heatwave~Intensity))) +
     scale_x_continuous(breaks = seq(-2,8,2),
                        limits = c(-3.11,8.2)) +
-    scale_y_continuous(breaks = seq(-0.5,0.5,0.1),
-                       limits = c(-0.5,0.5),
+    scale_y_continuous(breaks = seq(-1.0,0.4,0.2),
+                       limits = c(-1.1,0.4),
                        labels = scales::label_number(accuracy = 0.1)) +
     scale_fill_manual(values = c("GPP" = "royalblue", "ER" = "orange"),
                       labels = c("GPP" = expression(log[10](GPP+1)),
@@ -131,12 +131,12 @@ output_data <- output_data %>%
              label = expression(GPP~R[adj.]^2~"="~0.62),
              size = 5, hjust = 0) +
     annotate('text', x = 1, y = -0.35,
-             label = expression(ER~R[adj.]^2~"="~0.53),
+             label = expression(ER~R[adj.]^2~"="~0.54),
              size = 5, hjust = 0) +
     theme_bw() +
     theme(axis.text = element_text(color = 'black', size = 14),
           axis.title = element_text(color = 'black', size = 14),
-          legend.position = c(0.2,0.8),
+          legend.position = c(0.8,0.2),
           legend.title = element_blank(),
           legend.text = element_text(color = 'black', size = 14)) +
     guides(fill = guide_legend(reverse = TRUE), color = guide_legend(reverse = TRUE)))
@@ -158,9 +158,9 @@ output_data <- output_data %>%
                               '1 month'),
                  date_labels = "%b",
                  expand = c(0,0)) +
-    scale_y_continuous(breaks = seq(-0.5,0.5,0.1),
-                       limits = c(-0.5,0.5),
-                       labels = scales::label_number(accuracy = 0.1)) +
+    scale_y_continuous(breaks = seq(-0.2,0.2,0.05),
+                       limits = c(-0.2,0.2),
+                       labels = scales::label_number(accuracy = 0.01)) +
     scale_fill_manual(values = c("GPP" = "royalblue", "ER" = "orange"),
                       labels = c("GPP" = expression(log[10](GPP+1)),
                                  "ER" = expression(log[10](abs(ER)+1)))) +  
