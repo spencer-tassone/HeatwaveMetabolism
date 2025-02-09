@@ -35,7 +35,7 @@ hw_metab <- hw_metab %>%
   mutate(water_day = get_waterYearDay(date))
 
 model_gpp <- gam(
-  gpp_log ~ s(intensity_relThresh) + s(water_day, bs = 'cc') + s(site_no2, bs = 're'),
+  gpp_log ~ s(intensity_relThresh, bs = 'tp') + s(water_day, bs = 'cc') + s(site_no2, bs = 're'),
   data = hw_metab,
   method = 'REML',
   family = gaussian
@@ -45,7 +45,7 @@ summary(model_gpp)
 plot(model_gpp)
 
 model_er <- gam(
-  er_log ~ s(intensity_relThresh) + s(water_day, bs = 'cc') + s(site_no2, bs = 're'),
+  er_log ~ s(intensity_relThresh, bs = 'tp') + s(water_day, bs = 'cc') + s(site_no2, bs = 're'),
   data = hw_metab,
   method = 'REML',
   family = gaussian 
