@@ -45,20 +45,35 @@ percent_change <- hw_metab_summary %>%
     Percent_Change_GPP = round((Mean_GPP - Mean_GPP[category == "None"]) / Mean_GPP[category == "None"] * 100, 1),
     Percent_Change_ER = round((Mean_ER - Mean_ER[category == "None"]) / Mean_ER[category == "None"] * 100, 1),
     Percent_Change_NEP = round((Mean_NEP - Mean_NEP[category == "None"]) / Mean_NEP[category == "None"] * 100, 1)
-  ) %>% 
-  select(category, Percent_Change_GPP, Percent_Change_ER, Percent_Change_NEP)
+  ) 
 
-percent_change
+View(percent_change)
+
+# Calculate percent decrease in GPP during 'Strong' and 'Severe' relative to the 'Moderate' category
+percent_change_mod <- hw_metab_summary %>%
+  mutate(
+    Percent_Change_GPP = round((Mean_GPP - Mean_GPP[category == "Moderate"]) / Mean_GPP[category == "Moderate"] * 100, 1)
+  ) 
+
+View(percent_change_mod)
 
 # Kruskal-Wallis test for metabolism among heatwave severity class ----
 kruskal.test(GPP~category, data = hw_metab) # p-value < 0.001
 kruskal.test(abs_ER~category, data = hw_metab) # p-value < 0.001
 kruskal.test(NEP~category, data = hw_metab) # p-value < 0.001
 
+kruskal.test(z_score_gpp~category, data = hw_metab) # p-value < 0.001
+kruskal.test(z_score_er~category, data = hw_metab) # p-value < 0.001
+kruskal.test(z_score_nep~category, data = hw_metab) # p-value < 0.001
+
 # Post-Hoc: Dunn's test with the Benjamini-Hochberg correction ----
 dunn.test::dunn.test(hw_metab$GPP, hw_metab$category, kw = FALSE, method = 'bh', altp = TRUE, rmc = TRUE)
 dunn.test::dunn.test(hw_metab$abs_ER, hw_metab$category, kw = FALSE, method = 'bh', altp = TRUE, rmc = TRUE)
 dunn.test::dunn.test(hw_metab$NEP, hw_metab$category, kw = FALSE, method = 'bh', altp = TRUE, rmc = TRUE)
+
+dunn.test::dunn.test(hw_metab$z_score_gpp, hw_metab$category, kw = FALSE, method = 'bh', altp = TRUE, rmc = TRUE)
+dunn.test::dunn.test(hw_metab$z_score_er, hw_metab$category, kw = FALSE, method = 'bh', altp = TRUE, rmc = TRUE)
+dunn.test::dunn.test(hw_metab$z_score_nep, hw_metab$category, kw = FALSE, method = 'bh', altp = TRUE, rmc = TRUE)
 
 # Figures (boxplots) ----
 cols = c("None" = 'blue',
@@ -171,4 +186,4 @@ cols = c("None" = 'blue',
           plot.margin = grid::unit(c(1,1,0,0), "mm")))
 
 # width = 1300, height = 700
-ggarrange(gpp_raw,er_raw,nep_raw,gpp_zscore,er_zscore,nep_zscore, nrow = 2)  
+ggarrange(gpp_raw,er_raw,nep_raw,gpp_zscore,er_zscore,nep_zscore, nrow = 2) 
