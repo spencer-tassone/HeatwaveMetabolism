@@ -33,13 +33,12 @@ for(i in 1:length(zz)){
 }
 
 NROW(saveDatWarm) # 2,129 events
+sum(saveDatWarm$duration) # 17,733 total HW days
+sum(!is.na(wtemp_discharge_metab$date)) # 350,448 total days
+round((sum(saveDatWarm$duration)/sum(!is.na(wtemp_discharge_metab$date)))*100, 1) # 5.1% of all days were heatwave
 round(mean(saveDatWarm$duration)) # 8 days
 round(sd(saveDatWarm$duration)) # 5 days
 max(saveDatWarm$duration) # 59 days
-round(mean(saveDatWarm$intensity_max_relThresh),digits = 1) # 1.9 degrees C
-round(max(saveDatWarm$intensity_max_relThresh),digits = 1) # 10.6 degrees C
-round(mean(saveDatWarm$intensity_max),digits = 1) # 4.4 degrees C
-round(max(saveDatWarm$intensity_max),digits = 1) # 13.5 degrees C
 
 saveCatWarm %>%
   group_by(category) %>%
