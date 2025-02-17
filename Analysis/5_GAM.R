@@ -15,20 +15,14 @@ hw_metab <- hw_metab %>%
          category = fct_relevel(category, 'None', 'Moderate', 'Strong', 'Severe', 'Extreme'),
          site_no2 = as.factor(site_no),
          gpp_log = log10(GPP+1),
-         er_log = log10(abs_ER+1),
-         category2 = category,
-         category2 = ifelse(category == 'None', 0, category2),
-         category2 = ifelse(category == 'Moderate', 1, category2),
-         category2 = ifelse(category == 'Strong', 2, category2),
-         category2 = ifelse(category == 'Severe', 3, category2),
-         category2 = ifelse(category == 'Extreme', 4, category2))
+         er_log = log10(abs_ER+1))
 
 # Distributions
 hist(hw_metab$i_max)
 hist(hw_metab$GPP)
 hist(hw_metab$abs_ER)
-hist(hw_metab$gpp_log) # distribution positively skewed
-hist(hw_metab$er_log) # approximately normal distribution
+hist(hw_metab$gpp_log)
+hist(hw_metab$er_log)
 
 # Generalized additive models ----
 hw_metab <- hw_metab %>%
@@ -116,7 +110,7 @@ output_data <- output_data %>%
     geom_line(aes(color = metab), linewidth = 1) +
     labs(x = expression(Heatwave~Intensity~(degree*C)),
          y = expression(Est.~Effect~of~s(Heatwave~Intensity))) +
-    scale_x_continuous(breaks = seq(-2,8,2),
+    scale_x_continuous(breaks = seq(-2,8,1),
                        limits = c(-3.11,8.2)) +
     scale_y_continuous(breaks = seq(-1.0,0.4,0.2),
                        limits = c(-1.1,0.4),
